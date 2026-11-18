@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[node name="ModeMenu" type="CenterContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Options" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Options"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "TURN · LAST SPIN"
+horizontal_alignment = 1
+
+[node name="OnlineGame" type="Button" parent="Options"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "在线游戏"
+
+[node name="LocalGame" type="Button" parent="Options"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "本地游戏"

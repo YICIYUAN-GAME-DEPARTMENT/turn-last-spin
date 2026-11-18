@@ -7,6 +7,9 @@ static func compute(match_id: int, round_id: int, peer_id: int, action: Dictiona
 	var kind: String = str(action.get("type", "pass"))
 	var card_id: int = int(action.get("card_id", 0)) if kind == "play" else 0
 	var sign_value: int = int(action.get("sign", 0)) if kind == "play" else 0
+	if kind == "change":
+		card_id = int(action.get("value", 0))
+		sign_value = int(action.get("sign", 1))
 	var material: String = "TURN-ACTION-V1|%d|%d|%d|%s|%d|%d|%s" % [
 		match_id, round_id, peer_id, kind, card_id, sign_value, nonce
 	]
