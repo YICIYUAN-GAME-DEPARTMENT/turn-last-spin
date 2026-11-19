@@ -1,5 +1,11 @@
 # TURN: Last Spin · 设计文档导航
 
+> **2026-11-19 当前实现：独立专服 C/S。** 已加入游客重连和大厅成员管理，公网采用 WSS。跑游戏看[项目 README](../README.md)，接手云服和查看公网验收结果看[联机专服交接](05-engineering/07-dedicated-server-handoff.md)。
+
+## 2026-11-18 原型与方案记录
+
+以下内容记录此前的玩家房主模式与 P2P 评审。当前版本的运行和验证以项目 README 为准。
+
 > **项目状态：最小 Host-Client Demo 已实现并通过本机多实例验证；正式公网 P0 仍未完成。** 最近修订 2026-11-18。  
 > 工程路径：`H:/Godot/turn--last-spin`；Godot **4.7.1** / GL Compatibility，已建立 `scenes/main.tscn`、GDScript 规则、ENet/RPC 和原生占位 UI。原始上传文件所称旧本地人机原型并不存在，本版代码是新实现。
 >

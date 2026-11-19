@@ -29,6 +29,8 @@ func _draw() -> void:
 	var n: int = alive.size()
 	var radius: float = minf(size.x, size.y) * 0.43
 	var initial_index: int = int(snapshot.get("initial_index", 0))
+	var target_index: int = int(snapshot.get("target_index", -1))
+	var played_cards: Dictionary = snapshot.get("played_cards", {})
 	var all_hands: Dictionary = snapshot.get("hands", {})
 	for i in range(n):
 		var start_angle: float = -PI * 0.5 + TAU * float(i) / float(n)
@@ -41,6 +43,8 @@ func _draw() -> void:
 		var tint: Color = COLORS[i % COLORS.size()]
 		if i == initial_index:
 			tint = tint.lightened(0.20)
+		if i == target_index:
+			tint = tint.lerp(Color("#a34e32"), 0.65)
 		draw_colored_polygon(poly, tint)
 		var end_vec := Vector2(cos(start_angle), sin(start_angle))
 		draw_line(center, center + end_vec * radius, Color("#d9e1eb"), 1.0, true)
@@ -64,11 +68,18 @@ func _draw() -> void:
 			draw_rect(card_box, Color("#e8edf5"))
 			draw_rect(card_box, Color("#52647a"), false, 1.0)
 			draw_string(font, card_box.position + Vector2(1.0, 17.0), str(hand[k]["value"]), HORIZONTAL_ALIGNMENT_CENTER, 22.0, 13, Color("#202e3a"))
+			if played_cards.has(hand[k]["id"]):
+				draw_string(font, card_box.position + Vector2(0.0, 34.0), "已出", HORIZONTAL_ALIGNMENT_CENTER, 24.0, 11, Color("#ffd9a6"))
 		if hand.size() > 4:
 			draw_string(font, Vector2(seat_pos.x - 40.0, seat_pos.y + 49.0), "+%d more" % (hand.size() - 4), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, Color("#e1e7ee"))
 		if i == initial_index:
 			var marker: Vector2 = center + direction * (radius + 11.0)
 			draw_circle(marker, 6.0, Color("#f0cd81"))
+		if i == target_index:
+			var tip := center + direction * (radius - 6.0)
+			var base := center + direction * (radius + 24.0)
+			var side := direction.orthogonal() * 8.0
+			draw_colored_polygon(PackedVector2Array([tip, base + side, base - side]), Color("#ff824f"))
 	draw_arc(center, radius, 0.0, TAU, 96, Color("#e6ecf4"), 2.0, true)
 	draw_circle(center, radius * 0.09, Color("#162437"))
 	# 轮盘中央按原始需求保持空白。

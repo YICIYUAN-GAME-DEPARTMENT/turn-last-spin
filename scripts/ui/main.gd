@@ -1,56 +1,55 @@
 extends Control
-## 全体玩家相同的占位 UI；Host 后台运行 Session，不额外生成管理控制台。
+## 客户端大厅与牌局界面。
 const WheelScript = preload("res://scripts/ui/wheel_view.gd")
+const NetBridge = preload("res://scripts/network/net_bridge.gd")
+const Rules = preload("res://scripts/core/game_rules.gd")
 @onready var game = $Session
 
-var headline: Label
 var message_label: Label
-var address_input: LineEdit
-var port_input: LineEdit
-var connection_row: HBoxContainer
+var connect_button: Button
+var disconnect_button: Button
+var leave_button: Button
+var room_row: HBoxContainer
+var room_code_input: LineEdit
 var lobby_box: VBoxContainer
 var roster_label: Label
 var ready_button: Button
 var start_button: Button
 var lives_spin: SpinBox
+var member_admin: HBoxContainer
+var member_choice: OptionButton
 var game_box: HBoxContainer
 var wheel: Control
 var stage_label: Label
 var public_label: Label
 var score_label: Label
+var reveal_label: Label
 var action_row: HBoxContainer
 var hand_choice: OptionButton
 var draft_label: Label
 var confirm_button: Button
+var action_buttons: Array[BaseButton] = []
 var return_button: Button
 var draft: Dictionary = {"type": "pass"}
 var previous_hand_signature: String = ""
-var auto_smoke: bool = false
-var auto_ready_sent: bool = false
-var auto_start_sent: bool = false
-var auto_finished: bool = false
-var auto_expected_players: int = 2
-var auto_initial_lives: int = 1
-var auto_silent: bool = false
+var _server_address: String = ProjectSettings.get_setting("turn/network/server_address", "127.0.0.1")
+var _server_port := NetBridge.DEFAULT_PORT
 
 func _ready() -> void:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--turn-address="):
+			_server_address = argument.trim_prefix("--turn-address=")
+		elif argument.begins_with("--turn-port="):
+			_server_port = int(argument.trim_prefix("--turn-port="))
 	_build_layout()
 	game.changed.connect(_refresh)
 	_refresh()
-	var args := OS.get_cmdline_user_args()
-	for arg in args:
-		if arg.begins_with("--turn-smoke-players="):
-			auto_expected_players = clampi(int(arg.get_slice("=", 1)), 2, 12)
-		if arg.begins_with("--turn-smoke-lives="):
-			auto_initial_lives = clampi(int(arg.get_slice("=", 1)), 1, 5)
-	auto_silent = args.has("--turn-smoke-silent")
-	if args.has("--turn-smoke-host"):
-		auto_smoke = true
-		game.start_host(24680)
-		game.set_initial_lives(auto_initial_lives)
-	elif args.has("--turn-smoke-join"):
-		auto_smoke = true
-		game.join_host("127.0.0.1", 24680)
+	_connect_on_launch.call_deferred()
+
+func _connect_on_launch() -> void:
+	# 手动实例化场景的测试由测试脚本指定连接目标。
+	if get_tree().current_scene == self:
+		_on_connect()
 
 func _new_label(text_value: String = "", font_size: int = 16) -> Label:
 	var node := Label.new()
@@ -81,27 +80,32 @@ func _build_layout() -> void:
 	var vertical := VBoxContainer.new()
 	vertical.add_theme_constant_override("separation", 9)
 	margin.add_child(vertical)
-	headline = _new_label("TURN · LAST SPIN   /   MINIMAL DEMO", 26)
-	vertical.add_child(headline)
+	var header := HBoxContainer.new()
+	vertical.add_child(header)
+	var headline := _new_label("TURN · LAST SPIN", 26)
+	headline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(headline)
+	disconnect_button = _new_button("退出服务器", game.disconnect_server)
+	header.add_child(disconnect_button)
+	leave_button = _new_button("离开房间", game.leave_room)
+	header.add_child(leave_button)
 	message_label = _new_label("", 13)
 	message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vertical.add_child(message_label)
-	connection_row = HBoxContainer.new()
-	connection_row.add_theme_constant_override("separation", 8)
-	vertical.add_child(connection_row)
-	connection_row.add_child(_new_label("房主 IP:", 15))
-	address_input = LineEdit.new()
-	address_input.text = "127.0.0.1"
-	address_input.custom_minimum_size = Vector2(170.0, 0.0)
-	connection_row.add_child(address_input)
-	connection_row.add_child(_new_label("端口:", 15))
-	port_input = LineEdit.new()
-	port_input.text = "24680"
-	port_input.custom_minimum_size = Vector2(74.0, 0.0)
-	connection_row.add_child(port_input)
-	connection_row.add_child(_new_button("创建房间 (Host)", _on_host))
-	connection_row.add_child(_new_button("直连加入 (Client)", _on_join))
-	vertical.add_child(_new_label("占位资源 · Demo 使用 IP:端口直连；正式公网房间码、NAT/中继尚未实现。", 12))
+	connect_button = _new_button("重试连接", _on_connect)
+	connect_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	vertical.add_child(connect_button)
+	room_row = HBoxContainer.new()
+	room_row.add_theme_constant_override("separation", 8)
+	vertical.add_child(room_row)
+	room_row.add_child(_new_button("创建房间", game.create_room))
+	room_code_input = LineEdit.new()
+	room_code_input.placeholder_text = "房间码"
+	room_code_input.custom_minimum_size = Vector2(120.0, 0.0)
+	room_code_input.max_length = 6
+	room_code_input.text_submitted.connect(func(_code: String): _on_join())
+	room_row.add_child(room_code_input)
+	room_row.add_child(_new_button("加入房间", _on_join))
 	lobby_box = VBoxContainer.new()
 	vertical.add_child(lobby_box)
 	roster_label = _new_label("", 17)
@@ -125,6 +129,12 @@ func _build_layout() -> void:
 	lobby_actions.add_child(ready_button)
 	start_button = _new_button("房主开始", _on_start)
 	lobby_actions.add_child(start_button)
+	member_admin = HBoxContainer.new()
+	lobby_box.add_child(member_admin)
+	member_choice = OptionButton.new()
+	member_admin.add_child(member_choice)
+	member_admin.add_child(_new_button("转交房主", func(): _manage_member("transfer_owner")))
+	member_admin.add_child(_new_button("移出房间", func(): _manage_member("remove_member")))
 	game_box = HBoxContainer.new()
 	game_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	game_box.add_theme_constant_override("separation", 12)
@@ -150,34 +160,45 @@ func _build_layout() -> void:
 	scroll.add_child(public_label)
 	score_label = _new_label("", 13)
 	right.add_child(score_label)
+	reveal_label = _new_label("", 13)
+	reveal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	right.add_child(reveal_label)
 	action_row = HBoxContainer.new()
 	action_row.add_theme_constant_override("separation", 7)
 	vertical.add_child(action_row)
 	hand_choice = OptionButton.new()
 	hand_choice.custom_minimum_size = Vector2(145.0, 0.0)
 	action_row.add_child(hand_choice)
-	action_row.add_child(_new_button("加 +", func(): _draft_play(1)))
-	action_row.add_child(_new_button("减 -", func(): _draft_play(-1)))
-	action_row.add_child(_new_button("不出牌 PASS", _draft_pass))
+	action_buttons = [
+		hand_choice,
+		_new_button("加 +", func(): _draft_play(1)),
+		_new_button("减 -", func(): _draft_play(-1)),
+		_new_button("不出牌 PASS", _draft_pass),
+	]
+	for button in action_buttons.slice(1):
+		action_row.add_child(button)
 	draft_label = _new_label("当前选择：PASS", 14)
 	draft_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action_row.add_child(draft_label)
 	confirm_button = _new_button("确认并锁定", _on_confirm)
 	action_row.add_child(confirm_button)
+	action_buttons.append(confirm_button)
 	return_button = _new_button("结束后返回房间", _on_return)
 	vertical.add_child(return_button)
 
-func _on_host() -> void:
-	game.start_host(_port())
+func _on_connect() -> void:
+	game.connect_server(_server_address, _server_port)
 
 func _on_join() -> void:
-	game.join_host(address_input.text.strip_edges(), _port())
-
-func _port() -> int:
-	return clampi(int(port_input.text), 1, 65535)
+	game.join_room(room_code_input.text)
 
 func _on_ready() -> void:
 	game.set_ready(not game.is_ready())
+
+func _manage_member(command: String) -> void:
+	var target := member_choice.get_selected_id()
+	if target > 0:
+		game.manage_member(command, target)
 
 func _on_start() -> void:
 	game.request_start()
@@ -202,37 +223,51 @@ func _on_confirm() -> void:
 	game.submit_action(draft)
 
 func _refresh() -> void:
-	connection_row.visible = game.role == "none"
-	message_label.text = "角色: %s   |   本地 ID: %d   |   %s" % [game.role, game.local_id(), game.status]
+	connect_button.visible = game.phase == "offline"
+	disconnect_button.visible = game.phase != "offline"
+	disconnect_button.text = "取消重连" if game.phase == "reconnecting" else "退出服务器"
+	leave_button.visible = not game.room_code.is_empty() and game.phase != "reconnecting"
+	room_row.visible = game.phase == "connected"
+	message_label.text = game.status
 	lobby_box.visible = game.phase == "lobby"
-	game_box.visible = game.phase in ["choosing", "revealing", "result", "ended", "aborted"]
+	game_box.visible = game.phase in ["choosing", "result", "ended", "aborted"]
 	action_row.visible = game.phase == "choosing" and game.public.get("alive", []).has(game.local_id())
-	confirm_button.disabled = not game.can_act()
+	for button in action_buttons:
+		button.disabled = not game.can_act()
 	if game.phase == "lobby":
-		var lines: Array[String] = ["房间已建立（单房间 Demo，最多 12 人）。"]
+		var lines: Array[String] = ["房间码  %s   ·   人数 %d / %d" % [
+			game.room_code, game.members.size(), Rules.MAX_PLAYERS
+		]]
+		var previous_target := member_choice.get_selected_id()
+		member_choice.clear()
 		for member in game.members:
-			lines.append("%s%s    %s%s" % [
-				str(member["name"]), " (YOU)" if int(member["id"]) == game.local_id() else "",
+			lines.append("%s%s%s    %s%s" % [
+				str(member["name"]), "（你）" if int(member["id"]) == game.local_id() else "",
+				"（房主）" if int(member["id"]) == game.owner_id else "",
 				"已准备" if bool(member["ready"]) else "未准备",
 				"" if bool(member["online"]) else " (离线)"
 			])
+			if member["id"] != game.local_id():
+				var target_id: int = member["id"]
+				var name: String = member["name"]
+				member_choice.add_item(name, target_id)
+		if previous_target > 0:
+			var index := member_choice.get_item_index(previous_target)
+			if index >= 0:
+				member_choice.select(index)
+		member_admin.visible = game.is_room_owner() and member_choice.item_count > 0
 		roster_label.text = "\n".join(lines)
 		lives_spin.set_value_no_signal(float(game.initial_lives))
-		lives_spin.editable = game.am_host()
+		lives_spin.editable = game.is_room_owner()
 		ready_button.text = "取消准备" if game.is_ready() else "准备"
-		start_button.disabled = not game.am_host() or not game.all_ready()
-	return_button.visible = game.am_host() and game.phase in ["ended", "aborted"]
+		start_button.disabled = not game.is_room_owner() or not game.all_ready()
+	return_button.visible = game.is_room_owner() and game.phase in ["ended", "aborted"]
 	if game_box.visible:
 		_update_match_ui()
-	if auto_smoke and not auto_finished and game.phase in ["ended", "aborted"]:
-		auto_finished = true
-		var final_phase: String = game.phase
-		print("TURN_SMOKE_FINAL peer=%d phase=%s" % [game.local_id(), final_phase])
-		get_tree().create_timer(0.8).timeout.connect(func(): get_tree().quit(0 if final_phase == "ended" else 5))
 
 func _update_match_ui() -> void:
 	var state: Dictionary = game.public
-	wheel.present(state, game.members, game.local_id())
+	wheel.present(game.last_result.get("wheel", state), game.members, game.local_id())
 	var alive: Array = state.get("alive", [])
 	stage_label.text = "第 %d 轮 / 存活 %d 人 / 阶段: %s" % [
 		int(state.get("round", 0)), alive.size(), game.phase
@@ -256,6 +291,12 @@ func _update_match_ui() -> void:
 	]
 	if game.phase == "ended":
 		score_label.text += "\n最终胜者：%s" % game.name_for(int(game.last_result.get("winner", 0)))
+	var revealed: Array[String] = []
+	for action in game.last_result.get("actions", []):
+		var choice := "%+d" % (action["sign"] * action["value"]) if action["type"] == "play" else "PASS"
+		revealed.append("%s %s" % [game.name_for(action["peer_id"]), choice])
+	reveal_label.text = "本轮揭晓  " + "  ·  ".join(revealed) if not revealed.is_empty() else ""
+	reveal_label.visible = not revealed.is_empty()
 	_rebuild_hand_list()
 
 func _rebuild_hand_list() -> void:
@@ -263,7 +304,7 @@ func _rebuild_hand_list() -> void:
 	var parts: Array[String] = []
 	for card in hand:
 		parts.append(str(card["id"]))
-	var signature: String = "%s:%d:%s" % [str(game.public.get("round", 0)), game.local_id(), ",".join(parts)]
+	var signature := "%d:%d:%d:%s" % [game.match_id, game.public.get("round", 0), game.local_id(), ",".join(parts)]
 	if signature == previous_hand_signature:
 		return
 	previous_hand_signature = signature
@@ -276,23 +317,5 @@ func _process(_delta: float) -> void:
 	if game.phase == "choosing":
 		stage_label.text = "第 %d 轮 / 存活 %d 人 / 倒计时 %d 秒 / 已确认 %d 人" % [
 			int(game.public.get("round", 0)), game.public.get("alive", []).size(),
-			game.seconds_left(), game.commit_count
+			game.seconds_left(), game.confirmed_count
 		]
-	if not auto_smoke or auto_finished:
-		return
-	# 自动化双实例测试；正常玩家不会调用这些逻辑。
-	if game.phase == "lobby":
-		if not auto_ready_sent and game.local_id() > 0:
-			auto_ready_sent = true
-			game.set_ready(true)
-		if game.am_host() and game.all_ready() and game.members.size() >= auto_expected_players and not auto_start_sent:
-			auto_start_sent = true
-			game.request_start()
-	elif game.phase == "choosing" and game.can_act() and not auto_silent:
-		var action: Dictionary = {"type": "pass"}
-		if game.am_host() and int(game.public.get("round", 0)) == 1:
-			var my_hand: Array = game.public.get("hands", {}).get(game.local_id(), [])
-			if not my_hand.is_empty():
-				action = {"type": "play", "card_id": int(my_hand[0]["id"]), "sign": 1}
-		game.submit_action(action)
-	# 自动化结束由 _refresh 的事件驱动完成，避免 Host 断开时丢失终局状态。
