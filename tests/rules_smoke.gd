@@ -1,7 +1,6 @@
 extends SceneTree
-## 离线规则与承诺协议冒烟测试（不用安装第三方测试框架）。
+## 离线规则冒烟测试（不用安装第三方测试框架）。
 const Rules = preload("res://scripts/core/game_rules.gd")
-const Commit = preload("res://scripts/network/action_commit.gd")
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -55,14 +54,8 @@ func _run() -> void:
 	ok = _check(int(state2["played"].get(3, 0)) == 1, "one 3 consumed") and ok
 	ok = _check(int(state2["discarded"].get(3, 0)) == 1, "other 3 discarded") and ok
 	ok = _check(bool(r["stats_valid"]), "statistics preserved") and ok
-	var act: Dictionary = {"type": "play", "card_id": 12, "sign": -1}
-	var nonce: String = Commit.create_nonce()
-	var hash_value: String = Commit.compute(11, 1, 1, act, nonce)
-	ok = _check(nonce.length() == 64 and hash_value.length() == 64, "nonce and SHA256") and ok
-	ok = _check(Commit.valid_reveal(hash_value, 11, 1, 1, act, nonce), "valid reveal") and ok
-	ok = _check(not Commit.valid_reveal(hash_value, 11, 1, 1, {"type": "pass"}, nonce), "cannot change action after commit") and ok
 	if ok:
-		print("TURN_RULES_OK rounds=11 issued=77 repeated_values=pass negative=pass commitments=pass")
+		print("TURN_RULES_OK rounds=11 issued=77 repeated_values=pass negative=pass")
 		quit(0)
 	else:
 		quit(2)

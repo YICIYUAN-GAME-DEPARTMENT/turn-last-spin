@@ -77,7 +77,7 @@ theme_override_constants/separation = 8
 [node name="AddressLabel" type="Label" parent="Margin/Layout/ConnectionRow" unique_id=1750315686]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "房主 IP:"
+text = "专服地址:"
 
 [node name="AddressInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=1670139932]
 unique_name_in_owner = true
@@ -96,19 +96,26 @@ custom_minimum_size = Vector2(74, 0)
 layout_mode = 2
 text = "24680"
 
+[node name="RoomCodeInput" type="LineEdit" parent="Margin/Layout/ConnectionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(125, 0)
+layout_mode = 2
+placeholder_text = "6 位房间码"
+max_length = 6
+
 [node name="HostButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1300572074]
 layout_mode = 2
-text = "创建房间 (Host)"
+text = "连接专服"
 
 [node name="JoinButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1796960301]
 layout_mode = 2
-text = "直连加入 (Client)"
+text = "加入房间"
 
 [node name="NetworkHint" type="Label" parent="Margin/Layout" unique_id=1057351490]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "占位资源 · Demo 使用 IP:端口直连；正式公网房间码、NAT/中继尚未实现。"
+text = "公网使用 WSS；本机专服使用 127.0.0.1。连接专服后创建房间，或输入六位房间码加入。"
 
 [node name="LobbyBox" type="VBoxContainer" parent="Margin/Layout" unique_id=632700486]
 unique_name_in_owner = true
@@ -157,6 +164,28 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "房主开始"
 
+[node name="MemberAdmin" type="HBoxContainer" parent="Margin/Layout/LobbyBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MemberChoice" type="OptionButton" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(155, 0)
+layout_mode = 2
+
+[node name="TransferOwner" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+layout_mode = 2
+text = "转交房主"
+
+[node name="RemoveMember" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+layout_mode = 2
+text = "移出成员"
+
+[node name="LeaveRoom" type="Button" parent="Margin/Layout/LobbyBox"]
+layout_mode = 2
+text = "离开房间"
+
 [node name="MenuButton" type="Button" parent="Margin/Layout" unique_id=224163666]
 unique_name_in_owner = true
 visible = false
@@ -173,4 +202,7 @@ layout_mode = 1
 [connection signal="value_changed" from="Margin/Layout/LobbyBox/LivesRow/LivesSpin" to="." method="_on_lives_changed"]
 [connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/ReadyButton" to="." method="_on_ready"]
 [connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/StartButton" to="." method="_on_start"]
+[connection signal="pressed" from="Margin/Layout/LobbyBox/MemberAdmin/TransferOwner" to="." method="_on_transfer_owner"]
+[connection signal="pressed" from="Margin/Layout/LobbyBox/MemberAdmin/RemoveMember" to="." method="_on_remove_member"]
+[connection signal="pressed" from="Margin/Layout/LobbyBox/LeaveRoom" to="." method="_on_leave_room"]
 [connection signal="pressed" from="Margin/Layout/MenuButton" to="." method="_on_menu"]
