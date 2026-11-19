@@ -21,7 +21,7 @@ func _run() -> void:
 	_check(not Economy.purchase(state, 1, "defense"), "insufficient funds")
 	_check(not Economy.purchase(state, 1, "unknown"), "unknown card")
 	_check(not Economy.purchase(state, 55, "change"), "non-member cannot buy")
-	_check(not Rules.public_state(state).has("balances"), "wallet stays private")
+	_check(Rules.public_state(state).balances == {1: 50, 2: 50}, "coin totals are public")
 	_check(not Rules.public_state(state).has("special_cards"), "inventory stays private")
 
 	var settings = Settings.new()

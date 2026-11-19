@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/match_view.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/ui/wheel_view.gd" id="2_wheel"]
@@ -9,6 +9,13 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/card_action_menu.tscn" id="7_menu"]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/special_shop.tscn" id="8_shop"]
+
+[ext_resource type="Script" path="res://scripts/ui/coin_display.gd" id="9_coins"]
+
+[ext_resource type="PackedScene" path="res://scenes/ui/round_reward.tscn" id="10_reward"]
+
+[ext_resource type="Script" path="res://scripts/ui/hand_fan.gd" id="11_fan"]
+[ext_resource type="Script" path="res://scripts/ui/round_heading.gd" id="12_heading"]
 
 [node name="MatchView" type="Control"]
 layout_mode = 3
@@ -80,18 +87,36 @@ offset_top = 22.0
 offset_right = 394.0
 offset_bottom = 64.0
 mouse_default_cursor_shape = 2
-text = "商店 · 50r"
+text = "商店"
+alignment = 0
 
-[node name="Round" type="Label" parent="Table"]
+[node name="CoinWindow" type="ColorRect" parent="Table/ShopButton"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -99.0
+offset_top = 5.0
+offset_right = -5.0
+offset_bottom = -5.0
+clip_contents = true
+mouse_filter = 2
+color = Color(0.07, 0.085, 0.08, 1)
+
+[node name="Reels" type="Control" parent="Table/ShopButton/CoinWindow"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("9_coins")
+
+[node name="Round" type="Control" parent="Table"]
 layout_mode = 1
 anchor_right = 1.0
 offset_left = 336.0
-offset_top = 20.0
+offset_top = 8.0
 offset_right = -24.0
-offset_bottom = 62.0
-theme_override_font_sizes/font_size = 30
-text = "turn  1"
-horizontal_alignment = 1
+offset_bottom = 74.0
+mouse_filter = 2
+script = ExtResource("12_heading")
 
 [node name="Status" type="Label" parent="Table"]
 layout_mode = 1
@@ -160,16 +185,22 @@ theme_override_colors/font_color = Color(0.5686275, 0.90588236, 0.7607843, 1)
 theme_override_font_sizes/font_size = 17
 text = "我的手牌  03"
 
+[node name="Ranking" type="Label" parent="Table/HandPanel/Column"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5686275, 0.90588236, 0.7607843, 1)
+theme_override_font_sizes/font_size = 15
+
 [node name="Scroll" type="ScrollContainer" parent="Table/HandPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Cards" type="GridContainer" parent="Table/HandPanel/Column/Scroll"]
+[node name="Cards" type="Container" parent="Table/HandPanel/Column/Scroll"]
 layout_mode = 2
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
-columns = 3
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("11_fan")
 
 [node name="PreviewCard1" parent="Table/HandPanel/Column/Scroll/Cards" instance=ExtResource("6_card")]
 layout_mode = 2
@@ -239,6 +270,15 @@ offset_left = 24.0
 offset_top = 80.0
 offset_right = 344.0
 offset_bottom = 270.0
+
+[node name="PlayedCards" type="Control" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+z_index = 6
+
+[node name="RoundReward" parent="." instance=ExtResource("10_reward")]
+visible = false
 
 [node name="ActionOverlay" type="Control" parent="."]
 visible = false

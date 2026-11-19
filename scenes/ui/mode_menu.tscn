@@ -31,3 +31,40 @@ custom_minimum_size = Vector2(0, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "本地游戏"
+
+[node name="LocalModes" type="VBoxContainer" parent="."]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="LocalModes"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "选择本地模式"
+horizontal_alignment = 1
+
+[node name="Choices" type="HBoxContainer" parent="LocalModes"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ClassicMode" type="Button" parent="LocalModes/Choices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "经典模式"
+
+[node name="GreedMode" type="Button" parent="LocalModes/Choices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "贪婪模式"
+
+[node name="Back" type="Button" parent="LocalModes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 36)
+layout_mode = 2
+size_flags_horizontal = 4
+flat = true
+text = "返回"

@@ -1,4 +1,5 @@
 extends PanelContainer
+const Rules = preload("res://scripts/core/game_rules.gd")
 ## 商店处理购买，买到的暗牌由手牌区显示。
 
 @onready var super_effect: Label = $Rows/Super/Details/Effect
@@ -16,6 +17,7 @@ func _ready() -> void:
 		buy_buttons[kind].pressed.connect(_buy.bind(kind))
 
 func present() -> void:
+	$Rows/Defense/Details/Effect.text = "被命中时保住金币" if game.game_mode == Rules.Mode.GREED else "保住最后 1 点生命"
 	super_effect.text = "结算位移 +%d" % game.super_steps
 	for kind in buy_buttons:
 		var price: int = int(game.card_prices.get(kind, 0))

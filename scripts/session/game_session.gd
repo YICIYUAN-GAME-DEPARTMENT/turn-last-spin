@@ -6,17 +6,20 @@ const Rules = preload("res://scripts/core/game_rules.gd")
 const Commit = preload("res://scripts/network/action_commit.gd")
 const Economy = preload("res://scripts/core/economy.gd")
 const EconomySettings = preload("res://scripts/core/economy_settings.gd")
+const INTRO_SECONDS := 1.0
 const CHOOSE_SECONDS := 15.0
 const REVEAL_SECONDS := 5.0
 const NEXT_ROUND_DELAY := 2.5
+const REWARD_ROUND_DELAY := 3.9
 
 @export var economy_settings: EconomySettings = EconomySettings.new()
 
 @onready var net: Node = get_parent().get_node("Net")
 var role: String = "none" # none / host / client / local
-var phase: String = "offline" # offline / connecting / lobby / choosing / revealing / settlement / result / ended / aborted
+var phase: String = "offline" # offline / connecting / lobby / round_intro / choosing / revealing / settlement / result / ended / aborted
 var status: String = "尚未连接；Demo 通过 IP:端口直连，不具备公网短码发现。"
 var members: Array = []
+var game_mode: Rules.Mode = Rules.Mode.CLASSIC
 var initial_lives: int = 1
 var public: Dictionary = {}
 var last_result: Dictionary = {}
@@ -44,6 +47,7 @@ var _match_serial: int = 0
 var _commit_timer: Timer
 var _reveal_timer: Timer
 var _settlement_timer: Timer
+var _intro_timer: Timer
 var _next_timer: Timer
 
 func _ready() -> void:
@@ -57,6 +61,7 @@ func _ready() -> void:
 	_commit_timer = _new_timer(_on_commit_deadline)
 	_reveal_timer = _new_timer(_on_reveal_deadline)
 	_settlement_timer = _new_timer(_finish_settlement)
+	_intro_timer = _new_timer(_deal_round)
 	_next_timer = _new_timer(_on_next_round)
 
 func _new_timer(callback: Callable) -> Timer:
@@ -135,13 +140,14 @@ func submit_settlement(use_super: bool) -> void:
 func _shop_open(current_phase: String) -> bool:
 	return current_phase in ["choosing", "revealing", "settlement", "result"]
 
-func start_local_test(player_count: int, lives: int) -> void:
+func start_local_test(player_count: int, lives: int, mode: Rules.Mode = Rules.Mode.CLASSIC) -> void:
 	if role != "local" and (role != "none" or phase != "offline"):
 		return
 	_stop_timers()
 	public = {}
 	phase = "offline"
 	role = "local"
+	game_mode = mode
 	_rng.randomize()
 	initial_lives = clampi(lives, 1, Rules.MAX_INITIAL_LIVES)
 	members = [{"id": 1, "name": "本地玩家", "ready": true, "online": true}]
@@ -159,7 +165,7 @@ func start_host(port: int = 24680) -> void:
 	_rng.randomize()
 	members = [{"id": 1, "name": "a", "ready": false, "online": true}]
 	_set_status("本机已建房。其他人请输入你的局域网 IP 加入。")
-	_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+	_publish_lobby()
 
 func join_host(address: String, port: int = 24680) -> void:
 	if role != "none":
@@ -197,7 +203,7 @@ func _on_peer_joined(peer_id: int) -> void:
 		return
 	var letter: String = "abcdefghijkl".substr(members.size(), 1)
 	members.append({"id": peer_id, "name": letter, "ready": false, "online": true})
-	_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+	_publish_lobby()
 	_set_status("成员已加入：%s" % letter)
 
 func _on_peer_left(peer_id: int) -> void:
@@ -207,7 +213,7 @@ func _on_peer_left(peer_id: int) -> void:
 		for index in range(members.size() - 1, -1, -1):
 			if int(members[index]["id"]) == peer_id:
 				members.remove_at(index)
-		_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+		_publish_lobby()
 		return
 	for member in members:
 		if int(member["id"]) == peer_id:
@@ -223,6 +229,14 @@ func _on_peer_left(peer_id: int) -> void:
 	elif phase == "settlement" and _all_settlement_decided():
 		_finish_settlement()
 
+func _publish_lobby() -> void:
+	_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives, "mode": game_mode})
+
+func set_game_mode(mode: Rules.Mode) -> void:
+	if am_host() and phase == "lobby" and mode in Rules.Mode.values():
+		game_mode = mode
+		_publish_lobby()
+
 func set_initial_lives(amount: int) -> void:
 	if role != "host" or phase != "lobby":
 		return
@@ -230,7 +244,7 @@ func set_initial_lives(amount: int) -> void:
 	if initial_lives == next_value:
 		return
 	initial_lives = next_value
-	_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+	_publish_lobby()
 
 func set_ready(ready: bool) -> void:
 	if phase != "lobby":
@@ -269,7 +283,7 @@ func _on_host_command(peer_id: int, kind: String, payload: Dictionary) -> void:
 				for member in members:
 					if int(member["id"]) == peer_id:
 						member["ready"] = bool(payload.get("ready", false))
-				_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+				_publish_lobby()
 		"commit":
 			_host_commit(peer_id, payload)
 		"reveal":
@@ -329,7 +343,7 @@ func _host_purchase(peer_id: int, payload: Dictionary) -> void:
 	if Economy.purchase(_match, peer_id, kind):
 		_send_wallet(peer_id, "已加入我的手牌。")
 		_broadcast("hidden_cards", {"match_id": match_id, "round": _match["round"],
-			"counts": Economy.hidden_card_counts(_match)})
+			"counts": Economy.hidden_card_counts(_match), "balances": _match["balances"].duplicate()})
 	else:
 		_send_wallet(peer_id, "购买失败：请检查余额或存活状态。")
 
@@ -345,16 +359,25 @@ func _start_match() -> void:
 		ids.append(int(member["id"]))
 	var active_economy: Resource = economy_settings if economy_settings != null else EconomySettings.new()
 	var values: Dictionary = active_economy.values()
-	_match = Rules.make_state(ids, initial_lives, values)
+	_match = Rules.make_state(ids, initial_lives, values, game_mode)
 	_match_serial += 1
 	match_id = _match_serial
 	last_result.clear()
-	_broadcast("match_started", {"match_id": match_id, "card_prices": values["prices"], "super_steps": values["super_steps"]})
+	_broadcast("match_started", {"match_id": match_id, "mode": game_mode, "card_prices": _match["economy"]["prices"], "super_steps": values["super_steps"]})
 	_sync_wallets()
+	if _match["phase"] == "ended":
+		_broadcast("round_result", {"round": 0, "winner": _match["ranking"][0], "public": Rules.public_state(_match)})
+		return
 	_host_begin_round()
 
 func _host_begin_round() -> void:
 	if role not in ["host", "local"] or _match.is_empty() or _match["alive"].size() < 2:
+		return
+	_broadcast("round_intro", {"match_id": match_id, "public": Rules.public_state(_match)})
+	_intro_timer.start(INTRO_SECONDS)
+
+func _deal_round() -> void:
+	if phase != "round_intro" or role not in ["host", "local"]:
 		return
 	Rules.begin_round(_match, _rng)
 	_commits.clear()
@@ -373,6 +396,8 @@ func _host_begin_round() -> void:
 	var round_number: int = int(_match["round"])
 	if role != "local":
 		_set_status("第 %d 轮：选择一张牌加减，或 PASS。确认只发送哈希。" % round_number)
+	elif game_mode == Rules.Mode.GREED:
+		_set_status("第 %d 轮：测试玩家自动出牌。" % round_number)
 	elif _match["alive"].has(local_id()):
 		_set_status("第 %d 轮：测试玩家自动 PASS。选牌并确认，或等待倒计时结束。" % round_number)
 	else:
@@ -452,6 +477,11 @@ func _finish_local_round(action: Dictionary) -> void:
 	var actions: Dictionary = {}
 	if _match["alive"].has(local_id()):
 		actions[local_id()] = action
+	if game_mode == Rules.Mode.GREED:
+		for id in _match["alive"]:
+			if id != local_id():
+				var card: Dictionary = _match["hands"][id].back()
+				actions[id] = {"type": "play", "card_id": card["id"], "sign": 1 if _rng.randi_range(0, 1) else -1}
 	_begin_settlement(actions)
 
 func _begin_settlement(actions: Dictionary) -> void:
@@ -497,14 +527,21 @@ func _finish_settlement() -> void:
 		_abort_match("规则校验失败，已停止推进。")
 		return
 	phase = "ended" if int(outcome["winner"]) != 0 else "result"
+	var old_balances: Dictionary = public["balances"]
+	var balances: Dictionary = outcome["public"]["balances"]
+	var has_payout := balances.keys().any(func(id): return balances[id] > old_balances.get(id, 0))
 	_broadcast("round_result", outcome)
 	_sync_wallets()
-	print("TURN_ROUND peer=%d round=%d hit=%d hp=%d eliminated=%d stats_ok=%s" % [
-		local_id(), int(outcome["round"]), int(outcome["hit_peer"]),
-		int(outcome["remaining_lives"]), int(outcome["eliminated"]), str(outcome["stats_valid"])
-	])
+	if game_mode == Rules.Mode.GREED:
+		print("TURN_ROUND peer=%d round=%d hit=%d ranking=%s" % [
+			local_id(), outcome["round"], outcome["hit_peer"], _match["ranking"]])
+	else:
+		print("TURN_ROUND peer=%d round=%d hit=%d hp=%d eliminated=%d stats_ok=%s" % [
+			local_id(), int(outcome["round"]), int(outcome["hit_peer"]),
+			int(outcome["remaining_lives"]), int(outcome["eliminated"]), str(outcome["stats_valid"])
+		])
 	if phase == "result":
-		_next_timer.start(NEXT_ROUND_DELAY)
+		_next_timer.start(REWARD_ROUND_DELAY if has_payout else NEXT_ROUND_DELAY)
 
 func _on_next_round() -> void:
 	if phase == "result":
@@ -525,6 +562,7 @@ func _stop_timers() -> void:
 	_reveal_timer.stop()
 	_settlement_timer.stop()
 	_next_timer.stop()
+	_intro_timer.stop()
 	_pending_actions.clear()
 	_settlement_choices.clear()
 
@@ -545,13 +583,14 @@ func _return_to_lobby() -> void:
 		else:
 			members[index]["ready"] = false
 	phase = "lobby"
-	_broadcast("lobby", {"members": members.duplicate(true), "initial_lives": initial_lives})
+	_publish_lobby()
 
 func _on_client_event(kind: String, payload: Dictionary) -> void:
 	match kind:
 		"lobby":
 			phase = "lobby"
 			members = payload.get("members", []).duplicate(true)
+			game_mode = payload.get("mode", Rules.Mode.CLASSIC)
 			initial_lives = clampi(int(payload.get("initial_lives", 1)), 1, Rules.MAX_INITIAL_LIVES)
 			public.clear()
 			last_result.clear()
@@ -568,6 +607,7 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 		"match_started":
 			match_id = int(payload.get("match_id", 0))
 			last_result.clear()
+			game_mode = payload.get("mode", Rules.Mode.CLASSIC)
 			card_prices = payload.get("card_prices", {}).duplicate()
 			super_steps = int(payload.get("super_steps", 1))
 			balance = 0
@@ -578,6 +618,8 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			if payload.get("match_id") != match_id or payload.get("round") != public.get("round"):
 				return
 			public["hidden_card_counts"] = payload.get("counts", {}).duplicate()
+			if payload.has("balances"):
+				public["balances"] = payload["balances"].duplicate()
 			_emit_changed()
 		"wallet":
 			if payload.get("match_id") != match_id:
@@ -589,6 +631,12 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 				economy_notice = "本轮获币 +%dr" % (next_balance - balance)
 			balance = next_balance
 			_emit_changed()
+		"round_intro":
+			if payload.get("match_id") != match_id:
+				return
+			phase = "round_intro"
+			public = payload["public"].duplicate(true)
+			_set_status("准备发牌")
 		"round_started":
 			match_id = int(payload.get("match_id", 0))
 			public = payload.get("public", {}).duplicate(true)
@@ -624,7 +672,12 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			public = payload.get("public", {}).duplicate(true)
 			phase = "ended" if int(payload.get("winner", 0)) != 0 else "result"
 			var hit_name: String = name_for(int(payload.get("hit_peer", payload.get("eliminated", 0))))
-			if bool(payload.get("defended", false)):
+			if game_mode == Rules.Mode.GREED:
+				if int(payload["round"]) == 0:
+					_set_status("初始金币已达标")
+				else:
+					_set_status("%s %s" % [hit_name, "用防御卡保住金币" if payload["defended"] else "被命中，金币清零"])
+			elif bool(payload.get("defended", false)):
 				_set_status("第 %d 轮：%s 用防御卡保住最后 1 点生命；位移 %+d" % [
 					int(payload["round"]), hit_name, int(payload["delta"])
 				])

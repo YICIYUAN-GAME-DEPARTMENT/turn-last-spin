@@ -22,6 +22,18 @@ const SPECIAL_HINTS := {
 		quantity = amount
 		_update_face()
 
+var show_corner: bool = false:
+	set(enabled):
+		if show_corner != enabled:
+			show_corner = enabled
+			queue_redraw()
+
+func _draw() -> void:
+	if show_corner:
+		var mark := str(value) if kind == "play" else str(SPECIAL_NAMES[kind]).left(1)
+		var ink := Color("29483e") if kind == "play" else Color("ead3f1")
+		draw_string(get_theme_default_font(), Vector2(8, 22), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, ink)
+
 func _ready() -> void:
 	_update_face()
 

@@ -15,6 +15,15 @@ var needle_angle = -PI / 2.0:
 	set(value):
 		needle_angle = value
 		queue_redraw()
+var deal_progress: float = 1.0:
+	set(value):
+		deal_progress = value
+		queue_redraw()
+var play_progress: float = 1.0:
+	set(value):
+		play_progress = value
+		queue_redraw()
+var number_scale: float = 1.0
 var ui_font: Font
 
 @export_range(2, 12, 1) var preview_players: int = 8:
@@ -82,13 +91,13 @@ func _draw() -> void:
 	draw_circle(center, radius * 0.235, INK)
 	draw_arc(center, radius * 0.235, 0, TAU, 96, Color("4e6d69"), 1.5, true)
 	center_text(center_caption, center + Vector2(0, -34), 13, Color("9fb5bb"))
-	center_text(center_steps, center + Vector2(0, 3), 44 if center_steps.length() < 4 else 34, pointer_color)
+	center_text(center_steps, center + Vector2(0, 3), roundi((44 if center_steps.length() < 4 else 34) * number_scale), pointer_color)
 	center_text("格", center + Vector2(0, 39), 12, Color("9fb5bb"))
 	for i in range(count):
 		var angle = -PI / 2.0 + i * step
-		draw_seat(seats[i], center + Vector2.from_angle(angle) * radius * 0.70, radius, count)
+		draw_seat(seats[i], center + Vector2.from_angle(angle) * radius * 0.70, radius, count, i)
 
-func draw_seat(seat: Dictionary, position: Vector2, radius: float, count: int) -> void:
+func draw_seat(seat: Dictionary, position: Vector2, radius: float, count: int, seat_index: int) -> void:
 	var own = seat.id == local_player_id
 	var alive = seat.get("alive", true)
 	var avatar_radius = clampf(radius * 0.067, 19, 28)
@@ -107,6 +116,8 @@ func draw_seat(seat: Dictionary, position: Vector2, radius: float, count: int) -
 	if seat.has("hp"):
 		caption += " · HP %d" % int(seat["hp"])
 	center_text(caption, position + Vector2(0, avatar_radius + 19), 13, accent)
+	if seat.has("balance"):
+		center_text("%dr" % int(seat.balance), position + Vector2(0, avatar_radius + 35), 13, Color("ffdc8a"))
 	var cards = seat.get("cards", [])
 	var card_width: float = clampf(radius * 0.071, 21, 29)
 	var card_height: float = card_width * 1.38
@@ -115,12 +126,37 @@ func draw_seat(seat: Dictionary, position: Vector2, radius: float, count: int) -
 	var rows = ceili(float(cards.size()) / columns)
 	var height = rows * (card_height + gap) - gap if rows > 0 else 0.0
 	var first_y = position.y - avatar_radius - 13 - height
+	var played_count: int = seat.get("played_count", 0)
+	var played_index := 0
 	for row in range(rows):
 		var in_row = mini(columns, cards.size() - row * columns)
 		var width = in_row * (card_width + gap) - gap
 		for column in range(in_row):
 			var point = Vector2(position.x - width / 2.0 + column * (card_width + gap), first_y + row * (card_height + gap))
-			Cards.draw_card(self, Rect2(point, Vector2(card_width, card_height)), cards[row * columns + column], ui_font)
+			var card: Dictionary = cards[row * columns + column]
+			var rect := Rect2(point, Vector2(card_width, card_height))
+			if deal_progress < 1.0 and card.has("id") and card.id == seat.get("dealt_id", -1):
+				if own:
+					continue  # 自己的新牌飞向左下角手牌区。
+				# 所有座位在指针转完之前收牌，人数只影响发牌间隔。
+				var delay := 0.32 * seat_index / maxi(1, count - 1)
+				var travel := clampf((deal_progress - delay) / 0.68, 0.0, 1.0)
+				if travel <= 0.0:
+					continue
+				var origin := size * 0.5 - rect.size * 0.5
+				rect.position = origin.lerp(point, ease(travel, 0.55))
+				rect.position.y -= sin(PI * travel) * radius * 0.09
+				if travel < 0.70:
+					card = {"face_up": false}
+			if card.get("played", false):
+				var inward := position.lerp(size * 0.5, 0.42)
+				var tangent := (position - size * 0.5).normalized().orthogonal()
+				inward += tangent * (played_index - (played_count - 1) * 0.5) * (rect.size.x + 6.0)
+				var card_center := rect.get_center().lerp(inward, play_progress)
+				rect.size *= 1.0 + 0.22 * sin(PI * play_progress)
+				rect.position = card_center - rect.size * 0.5
+				played_index += 1
+			Cards.draw_card(self, rect, card, ui_font)
 
 func center_text(value: String, position: Vector2, font_size: int, color: Color) -> void:
 	var width = ui_font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x

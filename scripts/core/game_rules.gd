@@ -1,17 +1,21 @@
 extends RefCounted
 ## TURN 的纯规则层。无节点、网络或动画依赖。
 const Economy = preload("res://scripts/core/economy.gd")
+enum Mode { CLASSIC = 1, GREED }
+const COIN_GOAL := 1000
 const MAX_PLAYERS := 12
 const MAX_INITIAL_LIVES := 5
 
-static func make_state(player_ids: Array, initial_lives: int = 1, economy: Dictionary = {}) -> Dictionary:
+static func make_state(player_ids: Array, initial_lives: int = 1, economy: Dictionary = {}, mode: Mode = Mode.CLASSIC) -> Dictionary:
 	var hands: Dictionary = {}
 	var lives: Dictionary = {}
 	var starting_lives: int = clampi(initial_lives, 1, MAX_INITIAL_LIVES)
 	for raw_id in player_ids:
 		hands[int(raw_id)] = []
-		lives[int(raw_id)] = starting_lives
+		if mode == Mode.CLASSIC:
+			lives[int(raw_id)] = starting_lives
 	var state: Dictionary = {
+		"mode": mode, "ranking": [],
 		"alive": player_ids.duplicate(),
 		"hands": hands,
 		"lives": lives,
@@ -25,6 +29,12 @@ static func make_state(player_ids: Array, initial_lives: int = 1, economy: Dicti
 		"phase": "waiting"
 	}
 	Economy.initialize(state, economy)
+	if mode == Mode.GREED:
+		var prices: Dictionary = state["economy"]["prices"]
+		for kind in prices:
+			@warning_ignore("integer_division")
+			prices[kind] = int(prices[kind]) / 2
+		_record_finishers(state)
 	return state
 
 static func add_count(counts: Dictionary, value: int, amount: int = 1) -> void:
@@ -79,13 +89,16 @@ static func public_state(state: Dictionary) -> Dictionary:
 	var lives: Dictionary = {}
 	for peer_id in state["alive"]:
 		hands[peer_id] = state["hands"][peer_id].duplicate(true)
-		lives[peer_id] = int(state["lives"][peer_id])
+		if state["mode"] == Mode.CLASSIC:
+			lives[peer_id] = int(state["lives"][peer_id])
 	return {
+		"mode": state["mode"], "ranking": state["ranking"].duplicate(),
 		"alive": state["alive"].duplicate(),
 		"hands": hands,
 		"lives": lives,
 		"initial_lives": state["initial_lives"],
 		"hidden_card_counts": Economy.hidden_card_counts(state),
+		"balances": state["balances"].duplicate(),
 		"round": state["round"],
 		"initial_index": state["initial_index"],
 		"stats": statistics(state),
@@ -193,31 +206,66 @@ static func finish_round(state: Dictionary, actions: Dictionary, super_players: 
 	var initial_index: int = int(state["initial_index"])
 	var target_index: int = posmod(initial_index + delta, count)
 	var hit_peer: int = int(alive[target_index])
-	var previous_lives: int = int(state["lives"][hit_peer])
-	var defended: bool = previous_lives == 1 and detail[target_index]["type"] == "defense"
-	var remaining_lives: int = previous_lives - int(not defended)
-	state["lives"][hit_peer] = remaining_lives
-	var eliminated: int = hit_peer if remaining_lives == 0 else 0
+	var greed: bool = state["mode"] == Mode.GREED
+	var defended: bool = detail[target_index]["type"] == "defense"
+	var eliminated: int = 0
+	var remaining_lives: int = 0
+	if not greed:
+		var previous_lives: int = state["lives"][hit_peer]
+		defended = defended and previous_lives == 1
+		remaining_lives = previous_lives - int(not defended)
+		state["lives"][hit_peer] = remaining_lives
+		if remaining_lives == 0:
+			eliminated = hit_peer
 
 	_consume_played_cards(state, detail)
 	for id in used_super:
 		Economy.consume(state, id, "super")
-	if eliminated != 0:
-		var eliminated_hand: Array = state["hands"][eliminated]
-		for card in eliminated_hand:
-			add_count(state["discarded"], int(card["value"]))
-		eliminated_hand.clear()
-		alive.erase(eliminated)
 	var reward_steps: int = Economy.rotation_steps(delta, count)
-	var reward: int = Economy.pay_round(state, card_players, eliminated, reward_steps)
-	state["phase"] = "ended" if alive.size() == 1 else "result"
+	var reward: int = 0
+	var winner: int = 0
+	if greed:
+		if not defended:
+			reward = Economy.pay_round(state, card_players, hit_peer, reward_steps, true)
+		_record_finishers(state)
+		if alive.is_empty():
+			winner = state["ranking"][0]
+	else:
+		if eliminated != 0:
+			_remove_seat(state, eliminated)
+			reward = Economy.pay_round(state, card_players, eliminated, reward_steps)
+		if alive.size() == 1:
+			winner = alive[0]
+	state["phase"] = "ended" if winner != 0 else "result"
 	return {
 		"ok": true, "round": state["round"], "initial_index": initial_index,
 		"target_index": target_index, "delta": delta,
 		"hit_peer": hit_peer, "remaining_lives": remaining_lives, "defended": defended,
 		"eliminated": eliminated, "super_count": used_super.size(), "super_users": used_super.keys(),
 		"reward_steps": reward_steps, "play_reward": reward,
-		"winner": int(alive[0]) if alive.size() == 1 else 0,
+		"winner": winner,
 		"actions": detail, "public": public_state(state),
 		"stats_valid": stats_hold(state)
 	}
+
+static func _remove_seat(state: Dictionary, id: int) -> void:
+	for card in state["hands"][id]:
+		add_count(state["discarded"], int(card["value"]))
+	state["hands"][id].clear()
+	state["special_cards"].erase(id)
+	state["alive"].erase(id)
+
+static func _record_finishers(state: Dictionary) -> void:
+	var alive: Array = state["alive"]
+	var ranking: Array = state["ranking"]
+	# 同轮达标按原座次登记，所有人的收益均已结算。
+	for id in alive.duplicate():
+		if state["balances"][id] >= COIN_GOAL:
+			ranking.append(id)
+			_remove_seat(state, id)
+	if alive.size() == 1:
+		var last: int = alive[0]
+		ranking.append(last)
+		_remove_seat(state, last)
+	if alive.is_empty():
+		state["phase"] = "ended"

@@ -47,8 +47,8 @@ static func rotation_steps(delta: int, player_count: int) -> int:
 	# 完整一圈按 n 计，零位移按最低一格奖励档计。
 	return 1 if delta == 0 else posmod(absi(delta) - 1, player_count) + 1
 
-static func pay_round(state: Dictionary, card_players: Dictionary, eliminated: int, steps: int) -> int:
-	if eliminated == 0:
+static func pay_round(state: Dictionary, card_players: Dictionary, hit_peer: int, steps: int, keep_seat: bool = false) -> int:
+	if hit_peer == 0:
 		return 0
 	var balances: Dictionary = state["balances"]
 	var reward: int = 0 if card_players.is_empty() else int(state["economy"]["play_reward_rate"]) * steps
@@ -57,16 +57,19 @@ static func pay_round(state: Dictionary, card_players: Dictionary, eliminated: i
 
 	var recipients: Array = []
 	for id in state["alive"]:
-		if card_players.has(id):
+		if id != hit_peer and card_players.has(id):
 			recipients.append(id)
 	if not recipients.is_empty():
 		@warning_ignore("integer_division")
-		var inheritance: int = int(balances[eliminated]) * int(state["economy"]["inheritance_percent"]) / 100
+		var inheritance: int = int(balances[hit_peer]) * int(state["economy"]["inheritance_percent"]) / 100
 		@warning_ignore("integer_division")
 		var share: int = inheritance / recipients.size()
 		var remainder: int = inheritance % recipients.size()
 		for index in range(recipients.size()):
 			balances[recipients[index]] += share + int(index < remainder)
-	balances.erase(eliminated)
-	state["special_cards"].erase(eliminated)
+	if keep_seat:
+		balances[hit_peer] = 0
+	else:
+		balances.erase(hit_peer)
+		state["special_cards"].erase(hit_peer)
 	return reward

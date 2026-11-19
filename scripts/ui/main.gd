@@ -1,9 +1,12 @@
 extends Control
+const Rules = preload("res://scripts/core/game_rules.gd")
 ## 启动菜单、联机大厅和所有玩家共用的对局界面。
 @export_group("本地测试")
 @export var local_test: bool = false
 @export_range(2, 12) var local_player_count: int = 4
 @export_range(1, 5) var local_initial_lives: int = 1
+
+@export var local_game_mode: Rules.Mode = Rules.Mode.CLASSIC
 
 @onready var game = $Session
 @onready var mode_menu: CenterContainer = $ModeMenu
@@ -17,6 +20,7 @@ extends Control
 @onready var roster_label: Label = %Roster
 @onready var ready_button: Button = %ReadyButton
 @onready var start_button: Button = %StartButton
+@onready var mode_picker: OptionButton = %GameMode
 @onready var lives_spin: SpinBox = %LivesSpin
 @onready var match_view = $MatchView
 
@@ -30,6 +34,9 @@ var auto_initial_lives: int = 1
 var auto_silent: bool = false
 
 func _ready() -> void:
+	mode_picker.add_item("经典模式", Rules.Mode.CLASSIC)
+	mode_picker.add_item("贪婪模式", Rules.Mode.GREED)
+	mode_picker.item_selected.connect(func(index: int): game.set_game_mode(mode_picker.get_item_id(index)))
 	match_view.game = game
 	match_view.allow_menu = not local_test
 	match_view.menu_requested.connect(_on_menu)
@@ -38,9 +45,12 @@ func _ready() -> void:
 	match_view.initial_lives_changed.connect(_on_local_initial_lives_changed)
 	game.changed.connect(_refresh)
 	mode_menu.get_node("%OnlineGame").pressed.connect(_on_online_game)
-	mode_menu.get_node("%LocalGame").pressed.connect(_on_local_game)
+	mode_menu.get_node("%LocalGame").pressed.connect(_show_local_modes.bind(true))
+	mode_menu.get_node("%Back").pressed.connect(_show_local_modes.bind(false))
+	mode_menu.get_node("%ClassicMode").pressed.connect(_start_local_mode.bind(Rules.Mode.CLASSIC))
+	mode_menu.get_node("%GreedMode").pressed.connect(_start_local_mode.bind(Rules.Mode.GREED))
 	if local_test:
-		_on_local_game()
+		_start_local_mode(local_game_mode)
 		return
 
 	var args := OS.get_cmdline_user_args()
@@ -66,9 +76,15 @@ func _on_online_game() -> void:
 	_refresh()
 	address_input.grab_focus()
 
-func _on_local_game() -> void:
+func _show_local_modes(show_modes: bool) -> void:
+	mode_menu.get_node("Options").visible = not show_modes
+	mode_menu.get_node("LocalModes").visible = show_modes
+	mode_menu.get_node("%ClassicMode" if show_modes else "%LocalGame").grab_focus()
+
+func _start_local_mode(mode: Rules.Mode) -> void:
+	local_game_mode = mode
 	mode_selected = true
-	game.start_local_test(local_player_count, local_initial_lives)
+	game.start_local_test(local_player_count, local_initial_lives, local_game_mode)
 
 func _on_local_player_count_changed(count: int) -> void:
 	local_player_count = count
@@ -101,13 +117,13 @@ func _on_start() -> void:
 
 func _on_return() -> void:
 	if game.role == "local":
-		game.start_local_test(local_player_count, local_initial_lives)
+		game.start_local_test(local_player_count, local_initial_lives, local_game_mode)
 	else:
 		game.request_return_lobby()
 
 func _refresh() -> void:
 	var disconnected: bool = game.role == "none" and game.phase == "offline"
-	var in_match: bool = game.phase in ["choosing", "revealing", "settlement", "result", "ended", "aborted"]
+	var in_match: bool = game.phase in ["round_intro", "choosing", "revealing", "settlement", "result", "ended", "aborted"]
 	mode_menu.visible = not mode_selected and disconnected
 	game_margin.visible = not (mode_menu.visible or in_match)
 	connection_row.visible = disconnected
@@ -123,6 +139,9 @@ func _refresh() -> void:
 				"" if bool(member["online"]) else " (离线)"
 			])
 		roster_label.text = "\n".join(lines)
+		mode_picker.select(mode_picker.get_item_index(game.game_mode))
+		mode_picker.disabled = not game.am_host()
+		lives_spin.get_parent().visible = game.game_mode == Rules.Mode.CLASSIC
 		lives_spin.set_value_no_signal(float(game.initial_lives))
 		lives_spin.editable = game.am_host()
 		ready_button.text = "取消准备" if game.is_ready() else "准备"
