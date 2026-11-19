@@ -1,74 +1,164 @@
+@tool
 extends Control
-## 原生 CanvasItem 绘制的占位轮盘；不依赖贴图和第三方 UI。
-var snapshot: Dictionary = {}
-var member_names: Dictionary = {}
-var local_peer_id: int = 0
 
-const COLORS := [
-	Color("#365b83"), Color("#34667b"), Color("#47647f"),
-	Color("#4b5e91"), Color("#526a79"), Color("#416987"),
-	Color("#645f86"), Color("#4e7c82"), Color("#53618f"),
-	Color("#407085"), Color("#6d668c"), Color("#476b78")
-]
+const Cards = preload("res://scripts/ui/player_cards.gd")
+const MINT = Color("91e7c2")
+const CORAL = Color("ffb28e")
+const INK = Color("0a141d")
+var seats: Array = []
+var local_player_id = 0
+var start_index = 0
+var target_index = -1
+var center_caption = "初始"
+var center_steps = "1"
+var needle_angle = -PI / 2.0:
+	set(value):
+		needle_angle = value
+		queue_redraw()
+var deal_progress: float = 1.0:
+	set(value):
+		deal_progress = value
+		queue_redraw()
+var play_progress: float = 1.0:
+	set(value):
+		play_progress = value
+		queue_redraw()
+var number_scale: float = 1.0
+var ui_font: Font
 
-func present(state: Dictionary, members: Array, peer_id: int) -> void:
-	snapshot = state.duplicate(true)
-	member_names.clear()
-	for member in members:
-		member_names[int(member["id"])] = str(member["name"])
-	local_peer_id = peer_id
+@export_range(2, 12, 1) var preview_players: int = 8:
+	set(number):
+		preview_players = number
+		if Engine.is_editor_hint() and is_node_ready():
+			_editor_preview()
+
+func _ready() -> void:
+	ui_font = get_theme_default_font()
+	resized.connect(queue_redraw)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if Engine.is_editor_hint():
+		_editor_preview()
+
+func _editor_preview() -> void:
+	seats.clear()
+	for i in range(preview_players):
+		seats.append({"id": i, "name": "玩家" if i == 0 else String.chr(96 + i),
+			"alive": true, "cards": [{"id": i, "value": (i * 3 + 2) % preview_players + 1,
+			"face_up": true, "played": false, "sign": 0}]})
+	start_index = 0
+	center_steps = "1"
 	queue_redraw()
 
 func _draw() -> void:
-	var alive: Array = snapshot.get("alive", [])
-	var center: Vector2 = size * 0.5
-	var font: Font = ThemeDB.fallback_font
-	if alive.is_empty():
-		draw_string(font, Vector2(12.0, center.y), "TURN / WHEEL PLACEHOLDER", HORIZONTAL_ALIGNMENT_CENTER, size.x - 24.0, 16, Color("#bfc9d5"))
+	if seats.is_empty() or ui_font == null:
 		return
-	var n: int = alive.size()
-	var radius: float = minf(size.x, size.y) * 0.43
-	var initial_index: int = int(snapshot.get("initial_index", 0))
-	var all_hands: Dictionary = snapshot.get("hands", {})
-	for i in range(n):
-		var start_angle: float = -PI * 0.5 + TAU * float(i) / float(n)
-		var end_angle: float = -PI * 0.5 + TAU * float(i + 1) / float(n)
-		var poly := PackedVector2Array()
-		poly.append(center)
-		for j in range(19):
-			var theta: float = lerpf(start_angle, end_angle, float(j) / 18.0)
-			poly.append(center + Vector2(cos(theta), sin(theta)) * radius)
-		var tint: Color = COLORS[i % COLORS.size()]
-		if i == initial_index:
-			tint = tint.lightened(0.20)
-		draw_colored_polygon(poly, tint)
-		var end_vec := Vector2(cos(start_angle), sin(start_angle))
-		draw_line(center, center + end_vec * radius, Color("#d9e1eb"), 1.0, true)
-		var mid_angle: float = (start_angle + end_angle) * 0.5
-		var direction := Vector2(cos(mid_angle), sin(mid_angle))
-		var peer_id: int = int(alive[i])
-		var seat_pos: Vector2 = center + direction * radius * 0.64
-		var caption: String = str(member_names.get(peer_id, str(peer_id)))
-		if peer_id == local_peer_id:
-			caption += " (YOU)"
-		var label_y: float = seat_pos.y - 23.0
-		draw_string(font, Vector2(seat_pos.x - 65.0, label_y), caption, HORIZONTAL_ALIGNMENT_CENTER, 130.0, 14, Color.WHITE)
-		var hp: int = int(snapshot.get("lives", {}).get(peer_id, 1))
-		draw_string(font, Vector2(seat_pos.x - 47.0, seat_pos.y - 4.0), "HP %d" % hp, HORIZONTAL_ALIGNMENT_CENTER, 94.0, 13, Color("#fae5b8"))
-		var hand: Array = all_hands.get(peer_id, [])
-		var visible_cards: int = mini(hand.size(), 4)
-		var base_x: float = seat_pos.x - float(visible_cards) * 13.5
-		var card_y: float = seat_pos.y + 9.0
-		for k in range(visible_cards):
-			var card_box := Rect2(Vector2(base_x + float(k) * 27.0, card_y), Vector2(24.0, 24.0))
-			draw_rect(card_box, Color("#e8edf5"))
-			draw_rect(card_box, Color("#52647a"), false, 1.0)
-			draw_string(font, card_box.position + Vector2(1.0, 17.0), str(hand[k]["value"]), HORIZONTAL_ALIGNMENT_CENTER, 22.0, 13, Color("#202e3a"))
-		if hand.size() > 4:
-			draw_string(font, Vector2(seat_pos.x - 40.0, seat_pos.y + 49.0), "+%d more" % (hand.size() - 4), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, Color("#e1e7ee"))
-		if i == initial_index:
-			var marker: Vector2 = center + direction * (radius + 11.0)
-			draw_circle(marker, 6.0, Color("#f0cd81"))
-	draw_arc(center, radius, 0.0, TAU, 96, Color("#e6ecf4"), 2.0, true)
-	draw_circle(center, radius * 0.09, Color("#162437"))
-	# 轮盘中央按原始需求保持空白。
+	var center = size / 2.0
+	var radius = minf(size.x, size.y) * 0.465
+	var count = seats.size()
+	var step = TAU / count
+	draw_circle(center + Vector2(0, 10), radius + 9, Color(0, 0, 0, 0.22))
+	draw_circle(center, radius + 9, Color("21363e"))
+	draw_arc(center, radius + 9, 0, TAU, 160, Color("45606a"), 1.0, true)
+	for i in range(count):
+		var mid = -PI / 2.0 + i * step
+		var begin = mid - step / 2.0 + 0.006
+		var end = mid + step / 2.0 - 0.006
+		var points = PackedVector2Array([center])
+		for j in range(41):
+			points.append(center + Vector2.from_angle(lerpf(begin, end, j / 40.0)) * radius)
+		var color = Color("18333e") if i % 2 == 0 else Color("122a35")
+		if seats[i].id == local_player_id:
+			color = Color("25483e")
+		if i == start_index:
+			color = Color("493c33")
+		if i == target_index:
+			color = Color("694336")
+		draw_colored_polygon(points, color)
+		draw_line(center, center + Vector2.from_angle(begin) * radius, Color("091b25"), 2, true)
+		if i == start_index:
+			draw_circle(center + Vector2.from_angle(mid) * (radius + 5), 4, CORAL)
+	for tick in range(80):
+		var angle = tick * TAU / 80.0
+		var vector = Vector2.from_angle(angle)
+		draw_line(center + vector * (radius + 14), center + vector * (radius + (21 if tick % 5 == 0 else 17)), Color("3b5660"), 1, true)
+	var direction = Vector2.from_angle(needle_angle)
+	var normal = direction.orthogonal()
+	var pointer_color = CORAL if target_index >= 0 else MINT
+	draw_line(center, center + direction * radius * 0.90, pointer_color, 4, true)
+	draw_colored_polygon(PackedVector2Array([center + direction * radius * 0.96,
+		center + direction * radius * 0.86 + normal * 10,
+		center + direction * radius * 0.86 - normal * 10]), pointer_color)
+	draw_circle(center, radius * 0.235, INK)
+	draw_arc(center, radius * 0.235, 0, TAU, 96, Color("4e6d69"), 1.5, true)
+	center_text(center_caption, center + Vector2(0, -34), 13, Color("9fb5bb"))
+	center_text(center_steps, center + Vector2(0, 3), roundi((44 if center_steps.length() < 4 else 34) * number_scale), pointer_color)
+	center_text("格", center + Vector2(0, 39), 12, Color("9fb5bb"))
+	for i in range(count):
+		var angle = -PI / 2.0 + i * step
+		draw_seat(seats[i], center + Vector2.from_angle(angle) * radius * 0.70, radius, count, i)
+
+func draw_seat(seat: Dictionary, position: Vector2, radius: float, count: int, seat_index: int) -> void:
+	var own = seat.id == local_player_id
+	var alive = seat.get("alive", true)
+	var avatar_radius = clampf(radius * 0.067, 19, 28)
+	var accent = MINT if own else Color("9ab6c4")
+	if not alive:
+		accent = CORAL
+	draw_circle(position + Vector2(0, 3), avatar_radius + 3, Color(0, 0, 0, 0.22))
+	draw_circle(position, avatar_radius + 2, accent)
+	draw_circle(position, avatar_radius, Color("102b30") if own else Color("15242f"))
+	var avatar_text = "你" if own else str(seat.name).left(1).to_upper()
+	center_text(avatar_text, position, int(avatar_radius * 0.85), accent)
+	if not alive:
+		draw_line(position + Vector2(-avatar_radius * 0.7, -avatar_radius * 0.7),
+			position + Vector2(avatar_radius * 0.7, avatar_radius * 0.7), CORAL, 2, true)
+	var caption: String = "你" if own else str(seat.name)
+	if seat.has("hp"):
+		caption += " · HP %d" % int(seat["hp"])
+	center_text(caption, position + Vector2(0, avatar_radius + 19), 13, accent)
+	if seat.has("balance"):
+		center_text("%dr" % int(seat.balance), position + Vector2(0, avatar_radius + 35), 13, Color("ffdc8a"))
+	var cards = seat.get("cards", [])
+	var card_width: float = clampf(radius * 0.071, 21, 29)
+	var card_height: float = card_width * 1.38
+	var columns = 3 if count >= 9 else (4 if count >= 5 else 6)
+	var gap = 3.0
+	var rows = ceili(float(cards.size()) / columns)
+	var height = rows * (card_height + gap) - gap if rows > 0 else 0.0
+	var first_y = position.y - avatar_radius - 13 - height
+	var played_count: int = seat.get("played_count", 0)
+	var played_index := 0
+	for row in range(rows):
+		var in_row = mini(columns, cards.size() - row * columns)
+		var width = in_row * (card_width + gap) - gap
+		for column in range(in_row):
+			var point = Vector2(position.x - width / 2.0 + column * (card_width + gap), first_y + row * (card_height + gap))
+			var card: Dictionary = cards[row * columns + column]
+			var rect := Rect2(point, Vector2(card_width, card_height))
+			if deal_progress < 1.0 and card.has("id") and card.id == seat.get("dealt_id", -1):
+				if own:
+					continue  # 自己的新牌飞向左下角手牌区。
+				# 所有座位在指针转完之前收牌，人数只影响发牌间隔。
+				var delay := 0.32 * seat_index / maxi(1, count - 1)
+				var travel := clampf((deal_progress - delay) / 0.68, 0.0, 1.0)
+				if travel <= 0.0:
+					continue
+				var origin := size * 0.5 - rect.size * 0.5
+				rect.position = origin.lerp(point, ease(travel, 0.55))
+				rect.position.y -= sin(PI * travel) * radius * 0.09
+				if travel < 0.70:
+					card = {"face_up": false}
+			if card.get("played", false):
+				var inward := position.lerp(size * 0.5, 0.42)
+				var tangent := (position - size * 0.5).normalized().orthogonal()
+				inward += tangent * (played_index - (played_count - 1) * 0.5) * (rect.size.x + 6.0)
+				var card_center := rect.get_center().lerp(inward, play_progress)
+				rect.size *= 1.0 + 0.22 * sin(PI * play_progress)
+				rect.position = card_center - rect.size * 0.5
+				played_index += 1
+			Cards.draw_card(self, rect, card, ui_font)
+
+func center_text(value: String, position: Vector2, font_size: int, color: Color) -> void:
+	var width = ui_font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	draw_string(ui_font, position + Vector2(-width / 2.0, font_size * 0.33), value,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)

@@ -1,10 +1,16 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://c2h1l5ohyaf0r"]
 
-[ext_resource type="Script" path="res://scripts/ui/main.gd" id="1_ui"]
-[ext_resource type="Script" path="res://scripts/network/net_bridge.gd" id="2_net"]
-[ext_resource type="Script" path="res://scripts/session/game_session.gd" id="3_session"]
+[ext_resource type="Script" uid="uid://13y5gxuxplx4" path="res://scripts/ui/main.gd" id="1_ui"]
+[ext_resource type="Script" uid="uid://cwb3i8661dyg3" path="res://scripts/network/net_bridge.gd" id="2_net"]
+[ext_resource type="Script" uid="uid://cxatrsesl37eg" path="res://scripts/session/game_session.gd" id="3_session"]
+[ext_resource type="PackedScene" path="res://scenes/ui/match_view.tscn" id="4_match"]
+[ext_resource type="PackedScene" path="res://scenes/ui/mode_menu.tscn" id="5_menu"]
+[ext_resource type="Script" uid="uid://cqrc0bp7kkcn1" path="res://scripts/core/economy_settings.gd" id="6_economy"]
 
-[node name="Main" type="Control"]
+[sub_resource type="Resource" id="Resource_economy"]
+script = ExtResource("6_economy")
+
+[node name="Main" type="Control" unique_id=1262157716]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -13,8 +19,158 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ui")
 
-[node name="Net" type="Node" parent="."]
+[node name="Net" type="Node" parent="." unique_id=1041160354]
 script = ExtResource("2_net")
 
-[node name="Session" type="Node" parent="."]
+[node name="Session" type="Node" parent="." unique_id=1044598024]
 script = ExtResource("3_session")
+economy_settings = SubResource("Resource_economy")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1740488825]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0784314, 0.133333, 0.203922, 1)
+
+[node name="ModeMenu" parent="." unique_id=1223306581 instance=ExtResource("5_menu")]
+visible = false
+layout_mode = 1
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=921144378]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Layout" type="VBoxContainer" parent="Margin" unique_id=1821305221]
+layout_mode = 2
+theme_override_constants/separation = 9
+
+[node name="Headline" type="Label" parent="Margin/Layout" unique_id=725670986]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "TURN · LAST SPIN   /   MINIMAL DEMO"
+
+[node name="Message" type="Label" parent="Margin/Layout" unique_id=1127477202]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "当前状态"
+autowrap_mode = 3
+
+[node name="ConnectionRow" type="HBoxContainer" parent="Margin/Layout" unique_id=1602670424]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddressLabel" type="Label" parent="Margin/Layout/ConnectionRow" unique_id=1750315686]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "房主 IP:"
+
+[node name="AddressInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=1670139932]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(170, 0)
+layout_mode = 2
+text = "127.0.0.1"
+
+[node name="PortLabel" type="Label" parent="Margin/Layout/ConnectionRow" unique_id=1142774841]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "端口:"
+
+[node name="PortInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=1563670917]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "24680"
+
+[node name="HostButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1300572074]
+layout_mode = 2
+text = "创建房间 (Host)"
+
+[node name="JoinButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1796960301]
+layout_mode = 2
+text = "直连加入 (Client)"
+
+[node name="NetworkHint" type="Label" parent="Margin/Layout" unique_id=1057351490]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "占位资源 · Demo 使用 IP:端口直连；正式公网房间码、NAT/中继尚未实现。"
+
+[node name="LobbyBox" type="VBoxContainer" parent="Margin/Layout" unique_id=632700486]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Roster" type="Label" parent="Margin/Layout/LobbyBox" unique_id=1223826888]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "房间成员"
+autowrap_mode = 3
+
+[node name="GameMode" type="OptionButton" parent="Margin/Layout/LobbyBox" unique_id=902211441]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="LivesRow" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=1842406676]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LivesLabel" type="Label" parent="Margin/Layout/LobbyBox/LivesRow" unique_id=1692629140]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "初始生命（全员相同）:"
+
+[node name="LivesSpin" type="SpinBox" parent="Margin/Layout/LobbyBox/LivesRow" unique_id=1019280442]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(105, 0)
+layout_mode = 2
+min_value = 1.0
+max_value = 5.0
+value = 1.0
+
+[node name="LobbyActions" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=35057057]
+layout_mode = 2
+
+[node name="ReadyButton" type="Button" parent="Margin/Layout/LobbyBox/LobbyActions" unique_id=148112763]
+unique_name_in_owner = true
+layout_mode = 2
+text = "准备"
+
+[node name="StartButton" type="Button" parent="Margin/Layout/LobbyBox/LobbyActions" unique_id=2093793226]
+unique_name_in_owner = true
+layout_mode = 2
+text = "房主开始"
+
+[node name="MenuButton" type="Button" parent="Margin/Layout" unique_id=224163666]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 0
+text = "返回主菜单"
+
+[node name="MatchView" parent="." unique_id=1896713183 instance=ExtResource("4_match")]
+visible = false
+layout_mode = 1
+
+[connection signal="pressed" from="Margin/Layout/ConnectionRow/HostButton" to="." method="_on_host"]
+[connection signal="pressed" from="Margin/Layout/ConnectionRow/JoinButton" to="." method="_on_join"]
+[connection signal="value_changed" from="Margin/Layout/LobbyBox/LivesRow/LivesSpin" to="." method="_on_lives_changed"]
+[connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/ReadyButton" to="." method="_on_ready"]
+[connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/StartButton" to="." method="_on_start"]
+[connection signal="pressed" from="Margin/Layout/MenuButton" to="." method="_on_menu"]
