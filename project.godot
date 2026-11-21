@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="TURN: Last Spin"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/bootstrap.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -35,3 +35,7 @@ project/assembly_name="TURN- Last Spin"
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[turn]
+
+network/server_address="wss://120.55.102.157:24680"

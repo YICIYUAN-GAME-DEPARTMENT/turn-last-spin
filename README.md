@@ -1,81 +1,91 @@
-# TURN: Last Spin — 最小可玩 Demo
+# TURN: Last Spin
 
-> Godot **4.7.1** / GDScript / Compatibility / Windows PC  
-> **当前阶段：本机与局域网 Host-Client 技术 Demo。** 不是最终公网多人版本。
+Godot **4.7.1** / GDScript / Windows / Compatibility。
 
-## 运行方法
+当前集成版：**PR #2 的完整对局 UI、经典/贪婪模式、货币和特殊牌 + PR #1 的 Dedicated Server / WebSocket / WSS / 60 秒重连**。客户端与专服共用项目；网络协议 **v4**（提交时由专服验证并保存完整行动），旧 v2/v3 客户端与专服不可混用。
 
-1. 用 Godot 4.7.1 打开本目录的 `project.godot`，按 **F5** 运行。
-2. 在第一个实例点击 **创建房间 (Host)**，随后在大厅用 **「初始生命（全员相同）」SpinBox** 设置 1～5（默认 1）。设置会同步给所有玩家；比赛开始后锁定。默认监听 UDP 端口 `24680`。
-3. 再开一个游戏实例（在 Godot 编辑器中使用“运行多个实例”或打开第二份导出的游戏），输入房主地址，点击 **直连加入 (Client)**。
-   - 同一台电脑：输入 `127.0.0.1`。
-   - 同一局域网的不同设备：输入房主电脑的局域网 IPv4 地址。
-4. 两人分别点击 **准备**；房主点击 **房主开始**。
-5. 轮盘显示所有人的明牌与初始目标。本地可选择一张牌的 **加 +** / **减 -**，或 **不出牌 PASS**，然后点击 **确认并锁定**。
-6. **15 秒**内所有人确认可提前进入揭晓；否则尚未提交承诺者自动 PASS。Host 统一公布冻结承诺并发起自动 Reveal，最多等待 **5 秒**。
-7. 轮盘每轮**命中一人并扣 1 点生命**。仍有生命的玩家继续参赛、保留未出手牌；生命归零时才淘汰并弃置手牌。逐轮自动推进，最终只剩一人时显示胜者。房主可点击 **结束后返回房间**，全员重新准备。
+## 启动方式
 
-### Host 是玩家，也是本局逻辑协调者
+### 本地试玩（不联网）
 
-Host 和其他人使用**同一套普通游戏 UI**，没有额外管理界面。房主在后台运行房间、随机发牌、计时、统一揭晓和结算逻辑。普通玩家通过 Godot 原生 ENet/RPC 发消息给 Host。
+打开工程按 **F5**，在启动菜单选择「本地游戏 → 经典模式/贪婪模式」。也可以用 **F6** 运行 `scenes/local_test.tscn`。本地自动玩家与联网对局共用 `MatchSession`、`GameRules` 和 `Economy`；可以调整玩家人数与初始生命，并体验扇形手牌、商店、金币奖励动画和轮盘结算。
 
-### 美术资产
+### 本地专服联机
 
-**当前所有美术使用占位色块、原生控件和 `CanvasItem._draw()`。** 没有下载或安装美术资源、第三方控件或音效包。
+在一个终端启动服务器：
 
-## 自动化验证
+```powershell
+godot --headless --path . -- --turn-server --turn-port=24680
+```
 
-以下命令中的 `godot` 可替换为已安装的 Godot **console** 可执行文件。
+不配置证书时仅监听 **127.0.0.1 TCP**，只能本机测试。再启动两份客户端，点击「在线游戏」，填写服务器地址 `127.0.0.1` 和端口 `24680`，点击「连接专服」。连接后：
+
+1. 一人点「创建房间」，把显示的 **6 位房间码**发给其他人。
+2. 其他人在房间码输入框内填码并点击「加入房间」。
+3. 房主设置经典/贪婪模式及经典模式的初始生命；全员点「准备」，房主点「房主开始」。
+4. 进入轮盘，点击手牌选择加减、特殊牌或 PASS。15 秒内由专服校验并锁定行动，所有在线玩家提交完即可提前统一结算；未提交者按 PASS 处理。无需玩家再次发送揭晓消息。
+5. 结算后自动下一轮；终局由房主请求返回大厅。
+
+### 公网 WSS
+
+专服需配置 TLS 证书与私钥，并将 TCP 24680 开放给客户端：
+
+```bash
+godot --headless --path . -- --turn-server --turn-port=24680 --turn-wss-cert=/path/cert.pem --turn-wss-key=/path/key.pem
+```
+
+客户端的服务器地址填写 `wss://域名或证书匹配的IP:24680`，并由 Godot/TLS 校验证书。默认地址配置于 `project.godot` 的 `turn/network/server_address`。**客户端只在选择在线游戏后发起连接**，保留 PR #2 的启动菜单。
+
+已有的阿里云部署来自 PR #1 的协议 v2。**升级到本集成版之前，须先部署 v4 服务端和游戏逻辑，再使用 v4 客户端；本地验证不代表新版已部署云端。**运维步骤参考 [专服交接](docs/05-engineering/07-dedicated-server-handoff.md)。
+
+## 玩法和资源
+
+- **经典模式：** 存活玩家每轮各得 1 张明牌；被命中扣生命，归零后淘汰；最终存活者获胜。
+- **贪婪模式：** 玩家通过参与结算积累金币，达到 **1000r** 后登记名次离场；被命中钱包清零但保留席位；同轮达标按座次排列。
+- **经济：** 默认初始 **50r**，经典模式的防御/变化/超级卡价格分别为 **100/100/500r**；贪婪模式半价为 **50/50/250r**。
+- **特殊牌：** 防御卡在命中时保护相应生命/金币；变化卡在行动阶段自选位移；超级卡在结算阶段追加正向位移。购买后的库存是服务端私有状态，其他玩家看到暗牌数量和公开余额；余额变动可能暴露购买的卡牌类型，这一点属于当前玩法信息边界。
+- **奖励：** 由 `scripts/core/economy.gd` 统一计算，规则参数在 `economy_settings.gd` 中定义。联网对局使用**服务端配置**，本地试玩使用 `scenes/main.tscn` Session 上的 `Economy Settings`。
+- **断线：** 服务器将玩家身份与 WebSocket 连接分离，保留约 **60 秒**恢复窗口；已收到服务端锁定 ACK 的行动保存在专服，即使玩家断线仍参与本轮结算；未提交的掉线玩家按 PASS 处理。运行中短暂断线可恢复当前玩家 ID、公开状态、私人钱包和锁定状态。尚未实现客户端完全退出再启动的持久凭证恢复。
+
+## 代码职责
+
+| 路径 | 职责 |
+| --- | --- |
+| `scripts/core/game_rules.gd`, `economy.gd` | 纯规则、发牌、位移、奖励、货币和库存 |
+| `scripts/network/net_bridge.gd` | **唯一 WebSocket / WSS RPC 入口**、TLS、连接和消息收发 |
+| `scripts/network/action_commit.gd` | SHA-256 行动内容校验（专服接收并保存完整行动后才 ACK） |
+| `scripts/server/server_main.gd` | 专服监听、协议版本、接入限制和分发 |
+| `scripts/server/player_session_manager.gd` | 会话令牌、身份绑定和过期清理 |
+| `scripts/server/room_manager.gd` | 房间码、成员、权限、模式选择、对局生命周期 |
+| `scripts/server/match_session.gd` | **唯一权威对局状态**：计时、行动校验与锁定、购买、结算及快照；本地模式复用该实现 |
+| `scripts/session/game_session.gd` | 客户端状态、动作提交、重连与本地测试协调 |
+| `scripts/ui/main.gd`, `scenes/ui/match_view.tscn` | 启动菜单、联机大厅、共用轮盘 UI |
+
+## 验证
+
+在项目目录执行（`godot` 替换为 Godot 4.7.1 console 程序）：
 
 ```powershell
 godot --headless --path . --script res://tests/rules_smoke.gd
-```
-
-期望输出 `TURN_RULES_OK`。检查可调生命还可运行：
-
-```powershell
 godot --headless --path . --script res://tests/lives_smoke.gd
+godot --headless --path . --script res://tests/economy_smoke.gd
+godot --headless --path . --script res://tests/greed_smoke.gd
+godot --headless --path . --script res://tests/local_session_smoke.gd
+godot --headless --path . --script res://tests/disconnect_settlement_smoke.gd
 ```
 
-期望输出 `TURN_LIVES_OK`；覆盖 3 生命连续命中以及 12 人、5 生命的多轮守恒。
-
-双实例正常流程：分别在两个终端运行：
+网络测试先启动上述本地专服，再在两个终端运行：
 
 ```powershell
-godot --headless --path . -- --turn-smoke-host
-godot --headless --path . -- --turn-smoke-join
+# 房主：会打印 TURN_SMOKE_ROOM=XXXXXX
+godot --headless --path . --script res://tests/network_smoke.gd -- --turn-port=24680
+
+# 客人：将房间码替换为第一条命令输出
+godot --headless --path . --script res://tests/network_smoke.gd -- --turn-port=24680 --turn-room=XXXXXX
 ```
 
-默认自动创建两人局、准备并完成对局；期望所有实例打印 `TURN_SMOKE_RESULT` 和 `TURN_SMOKE_FINAL ... phase=ended`。
+贪婪模式购买与使用变化卡的联网回归：房主额外传入 `--turn-mode=2 --turn-rounds=1 --turn-test-special`，客人传入 `--turn-rounds=1`。断线恢复回归改用 `tests/network_upgrade_smoke.gd`，同样以 `--turn-room` 指定客人房间码。测试应显示 `TURN_SMOKE_FINAL`、`TURN_SMOKE_SPECIAL_OK` 或 `TURN_UPGRADE_RESUME_OK`。
 
-四人测试：Host 传入 `--turn-smoke-host --turn-smoke-players=4`，另外启动三个带 `--turn-smoke-join` 的实例。
+## 当前边界
 
-**多生命联网测试**：Host 使用 `--turn-smoke-host --turn-smoke-lives=3`，Client 仍使用 `--turn-smoke-join`；应看到被命中者 HP 2→1→0 后才淘汰，双方最终胜者一致。
-
-超时测试：普通 Client 额外传入 `--turn-smoke-silent`，该玩家会准备但不提交承诺，服务器在 **15 秒**后按 PASS 结算。注意测试时不要使用过低的 `--quit-after` 帧数上限提前中止进程。
-
-## 代码结构
-
-| 路径 | 功能 |
-| --- | --- |
-| `scripts/core/game_rules.gd` | 纯规则：每轮发牌、PLAY/PASS、循环位移、淘汰、统计 |
-| `scripts/network/net_bridge.gd` | 唯一 ENet/RPC 入口、连接/断开/消息收发 |
-| `scripts/network/action_commit.gd` | 一次性随机盐、SHA-256 承诺与 Reveal 校验 |
-| `scripts/session/game_session.gd` | 房间与成员、15 秒计时、承诺收集、揭晓、轮次和终局 |
-| `scripts/ui/wheel_view.gd` | 占位轮盘：扇区、名字、明牌小方框、指向 |
-| `scripts/ui/main.gd` | 全体玩家共用的主菜单/大厅/手牌操作 UI |
-| `scenes/main.tscn` | 稳定的网络节点路径与入口场景 |
-| `tests/` | 规则自动化、双实例自动模式以及真实 UI 截图工具 |
-| `docs/` | 完整需求、P2P 方案与设计记录 |
-
-## 当前 Demo 已实现与未实现的分界
-
-已实现：**房主大厅调整初始生命 1～5、全员同步、每轮命中扣 1、归零才淘汰**；同机或局域网 IP 直连、2～12 玩家逻辑边界（**目前仅实际自动化验证 2 和 4 个实例**）、成员准备、15 秒决策承诺、Host 不在决策期获取他人的出牌明文、自动 Reveal、统一规则结算、淘汰、统计、胜利、返回大厅。
-
-暂未实现：**公网短房间码发现、NAT 穿透/中继、两台异网设备整局验收**、12 人极端 UI 验收、主机迁移、人机补位、正式资源。
-
-本 Demo 不承担商业级反作弊。Host 可以中止房间，也负责生成公开随机结果，尚无多方可验证的骰娘协议。
-
-**特别限制**：在玩家已经提交 SHA-256 承诺、但自动揭晓前掉线时，Host 无法凭哈希恢复真实行动。本 Demo 会停止该次对局并提示异常，**不会私自改成 PASS**。这一边界仍待正式版决策；普通玩家未提交承诺时自动 PASS 已实现。
-
-本版进度与具体测试记录见 [最小 Demo Validation](docs/05-engineering/06-demo-validation.md)。
+已在同一台 Windows 设备上完成**独立 WS 专服 + 两客户端**的经典整局、贪婪模式特殊牌、承诺锁定、重连恢复与本地经典/贪婪回归。**尚未对本次集成后的 v4 新版本执行阿里云 WSS 双设备异网验收**，也未完成高并发压力测试、正式美术资源及退出客户端后重登恢复。历史 PR #1 的公网验证不可直接代替新协议验收。
