@@ -9,14 +9,12 @@ const Economy = preload("res://scripts/core/economy.gd")
 const Settings = preload("res://scripts/core/economy_settings.gd")
 const INTRO_SECONDS := 1.0
 const CHOOSE_SECONDS := 15.0
-const REVEAL_SECONDS := 5.0
 const NEXT_ROUND_DELAY := 2.5
 const REWARD_ROUND_DELAY := 3.9
 
 var _match_id := 0
 var _state: Dictionary = {}
 var _commits: Dictionary = {}
-var _reveals: Dictionary = {}
 var _actions: Dictionary = {}
 var _settlement_choices: Dictionary = {}
 var _offline: Dictionary = {}
@@ -51,8 +49,8 @@ func is_finished() -> bool:
 	return _state.get("phase") in ["ended", "aborted"]
 
 func submit_action(player_id: int, payload: Dictionary) -> void:
-	# PR1 的旧 action RPC 不是 PR2 的承诺-揭晓流程，统一走 commit / reveal。
-	_reject(player_id, payload, "请使用承诺-揭晓协议。")
+	# 旧 action RPC 不允许绕过权威提交阶段。
+	_reject(player_id, payload, "请使用承诺提交协议。")
 
 func submit_commit(player_id: int, payload: Dictionary) -> void:
 	if _state.get("phase") != "choosing" or _expired() or not _allowed(player_id, payload) or _offline.has(player_id):
@@ -61,30 +59,23 @@ func submit_commit(player_id: int, payload: Dictionary) -> void:
 		_player(player_id, "commit_ack", {"round": _state["round"]})
 		return
 	var hash_text: Variant = payload.get("hash")
-	if not hash_text is String or hash_text.length() != 64 or not hash_text.is_valid_hex_number():
+	var action: Variant = payload.get("action")
+	var nonce: Variant = payload.get("nonce")
+	if not hash_text is String or not action is Dictionary or not nonce is String:
+		_reject(player_id, payload, "行动提交无效，请重试。")
 		return
+	if not hash_text.is_valid_hex_number() or not Rules.valid_action(_state, player_id, action) or not Commit.valid_reveal(hash_text, _match_id, int(_state["round"]), player_id, action, nonce):
+		_reject(player_id, payload, "行动提交校验失败，请重试。")
+		return
+	# ACK 仅在服务器持有可结算的行动后发送；断线也不会丢失已锁定的出牌。
 	_commits[player_id] = hash_text
+	_actions[player_id] = action.duplicate(true)
 	_player(player_id, "commit_ack", {"round": _state["round"]})
 	room_update.emit("commit_count", {"count": _commits.size()})
 	_finish_if_ready()
 
-func submit_reveal(player_id: int, payload: Dictionary) -> void:
-	if _state.get("phase") != "revealing" or not _commits.has(player_id) or _reveals.has(player_id) or not _allowed(player_id, payload):
-		return
-	var action: Variant = payload.get("action")
-	var nonce: Variant = payload.get("nonce")
-	if not action is Dictionary or not nonce is String or not Rules.valid_action(_state, player_id, action):
-		_abort("揭晓行动无效，对局已中止。")
-		return
-	if not Commit.valid_reveal(_commits[player_id], _match_id, int(_state["round"]), player_id, action, nonce):
-		_abort("行动承诺与揭晓不一致，对局已中止。")
-		return
-	_reveals[player_id] = action.duplicate(true)
-	if _reveals.size() == _commits.size():
-		_begin_settlement()
-
 func purchase(player_id: int, payload: Dictionary) -> void:
-	if payload.get("match_id") != _match_id or _state.get("phase") not in ["choosing", "revealing", "settlement", "result"]:
+	if payload.get("match_id") != _match_id or _state.get("phase") not in ["choosing", "settlement", "result"]:
 		return
 	var kind: Variant = payload.get("kind")
 	if not kind is String or _offline.has(player_id):
@@ -126,8 +117,6 @@ func player_disconnected(player_id: int) -> void:
 
 func player_reconnected(player_id: int) -> void:
 	_offline.erase(player_id)
-	if _state.get("phase") == "revealing" and _commits.has(player_id) and not _reveals.has(player_id):
-		_player(player_id, "manifest", _manifest())
 
 func snapshot_for(player_id: int) -> Dictionary:
 	return {"match_id": _match_id, "phase": _state["phase"], "public": Rules.public_state(_state),
@@ -172,7 +161,6 @@ func _begin_intro() -> void:
 func _begin_round() -> void:
 	Rules.begin_round(_state, _rng)
 	_commits.clear()
-	_reveals.clear()
 	_actions.clear()
 	_settlement_choices.clear()
 	_last_result.clear()
@@ -199,34 +187,16 @@ func _finish_if_ready() -> void:
 	for id in _state["alive"]:
 		if not _offline.has(id) and not _commits.has(id):
 			return
-	_freeze_commits()
-
-func _manifest() -> Dictionary:
-	var entries: Array = []
-	for id in _state["alive"]:
-		if _commits.has(id):
-			entries.append({"peer_id": id, "status": "commit", "hash": _commits[id]})
-		else:
-			entries.append({"peer_id": id, "status": "auto_pass"})
-	return {"match_id": _match_id, "round": _state["round"], "entries": entries}
-
-func _freeze_commits() -> void:
-	if _state.get("phase") != "choosing":
-		return
-	_state["phase"] = "revealing"
-	_timer.start(REVEAL_SECONDS)
-	_deadline_ms = Time.get_ticks_msec() + int(REVEAL_SECONDS * 1000)
-	room_update.emit("manifest", _manifest())
-	if _commits.is_empty():
-		_begin_settlement()
+	_begin_settlement()
 
 func _begin_settlement() -> void:
-	if _state.get("phase") not in ["revealing", "choosing"]:
+	if _state.get("phase") != "choosing":
 		return
 	_timer.stop()
 	if _local_player_id == 0:
 		for id in _state["alive"]:
-			_actions[id] = _reveals.get(id, {"type": "pass"})
+			if not _actions.has(id):
+				_actions[id] = {"type": "pass"}
 	_state["phase"] = "settlement"
 	_settlement_choices.clear()
 	var duration: float = float(_state["economy"]["settlement_seconds"])
@@ -288,14 +258,7 @@ func _on_timer() -> void:
 		"choosing":
 			if _local_player_id != 0:
 				_actions[_local_player_id] = {"type": "pass"}
-				_begin_settlement()
-			else:
-				_freeze_commits()
-		"revealing":
-			if _reveals.size() == _commits.size():
-				_begin_settlement()
-			else:
-				_abort("部分玩家未完成承诺揭晓。")
+			_begin_settlement()
 		"settlement":
 			_finish_settlement()
 		"result":

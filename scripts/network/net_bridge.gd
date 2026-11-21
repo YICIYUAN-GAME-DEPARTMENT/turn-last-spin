@@ -10,7 +10,7 @@ signal server_lost()
 
 const DEFAULT_PORT := 24680
 const SERVER_PEER_ID := 1
-const PROTOCOL_VERSION := 3
+const PROTOCOL_VERSION := 4
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)

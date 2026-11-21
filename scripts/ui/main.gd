@@ -144,7 +144,7 @@ func _on_return() -> void:
 
 func _refresh() -> void:
 	var disconnected: bool = game.role == "none" and game.phase == "offline"
-	var in_match: bool = game.phase in ["round_intro", "choosing", "revealing", "settlement", "result", "ended", "aborted"]
+	var in_match: bool = game.phase in ["round_intro", "choosing", "settlement", "result", "ended", "aborted"]
 	mode_menu.visible = not mode_selected and disconnected
 	game_margin.visible = not (mode_menu.visible or in_match)
 	connection_row.visible = game.phase in ["offline", "connected", "connecting"]

@@ -45,15 +45,13 @@ func handle_command(player_id: int, kind: String, payload: Dictionary) -> void:
 				_publish_lobby(room)
 		"start":
 			_start_match(room, player_id)
-		"commit", "reveal", "buy_card", "settlement_choice":
+		"commit", "buy_card", "settlement_choice":
 			if room.match_session == null:
 				_error(player_id, "当前没有进行中的对局。")
 				return
 			match kind:
 				"commit":
 					room.match_session.submit_commit(player_id, payload)
-				"reveal":
-					room.match_session.submit_reveal(player_id, payload)
 				"buy_card":
 					room.match_session.purchase(player_id, payload)
 				"settlement_choice":

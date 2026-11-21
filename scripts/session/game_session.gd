@@ -121,11 +121,11 @@ func seconds_left() -> int:
 	return maxi(0, ceili(float(_deadline_ms - Time.get_ticks_msec()) / 1000.0))
 
 func can_buy_cards() -> bool:
-	return phase in ["choosing", "revealing", "settlement", "result"] and public.get("alive", []).has(local_id())
+	return phase in ["choosing", "settlement", "result"] and public.get("alive", []).has(local_id())
 
 func special_card_count(kind: String) -> int:
 	var owned: int = int(special_cards.get(kind, 0))
-	if sealed_action.get("type") == kind and phase in ["choosing", "revealing", "settlement"]:
+	if sealed_action.get("type") == kind and phase in ["choosing", "settlement"]:
 		return maxi(0, owned - 1)
 	return owned
 
@@ -221,8 +221,9 @@ func submit_action(action: Dictionary) -> void:
 		sealed_nonce = Commit.create_nonce()
 		sealed_hash = Commit.compute(match_id, int(public["round"]), local_id(), action, sealed_nonce)
 		_net.send_command("commit", {"code": room_code, "match_id": match_id,
-			"round": public["round"], "hash": sealed_hash})
-	_set_status("本轮行动已提交，等待结算。")
+			"round": public["round"], "hash": sealed_hash,
+			"action": sealed_action.duplicate(true), "nonce": sealed_nonce})
+	_set_status("行动提交中，等待专服确认。")
 
 func _start_connection() -> void:
 	_connection_timer.start(CONNECT_TIMEOUT)
@@ -373,15 +374,11 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 		"commit_ack":
 			_submitting = false
 			_locked = true
-			_set_status("服务端已收到行动承诺。")
+			_set_status("服务端已锁定本轮行动。")
 		"commit_count", "confirmed_count":
 			commit_count = int(payload.get("count", 0))
 			confirmed_count = commit_count
 			changed.emit()
-		"manifest":
-			phase = "revealing"
-			_set_status("正在揭晓本轮行动…")
-			_process_manifest(payload)
 		"settlement_started":
 			phase = "settlement"
 			settlement_delta = int(payload.get("delta", 0))
@@ -398,6 +395,7 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 				_submitting = false
 				if not _locked:
 					sealed_hash = ""
+					sealed_nonce = ""
 					sealed_action.clear()
 				_set_status(str(payload.get("message", "操作被拒绝")))
 		"round_result":
@@ -411,21 +409,6 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			_set_status(str(payload.get("message", "对局已中止")))
 		"error":
 			_set_status(str(payload.get("message", "网络错误")))
-
-func _process_manifest(payload: Dictionary) -> void:
-	if payload.get("match_id") != match_id or payload.get("round") != public.get("round"):
-		return
-	var own_hash := ""
-	for entry in payload.get("entries", []):
-		if int(entry["peer_id"]) == local_id() and entry.get("status") == "commit":
-			own_hash = str(entry["hash"])
-	if sealed_hash.is_empty():
-		return
-	if own_hash != sealed_hash:
-		_set_status("服务端承诺列表与本机不符，拒绝揭晓。")
-		return
-	_net.send_command("reveal", {"code": room_code, "match_id": match_id,
-		"round": public["round"], "action": sealed_action.duplicate(true), "nonce": sealed_nonce})
 
 func _apply_snapshot(payload: Dictionary) -> void:
 	var same_round: bool = match_id == payload["match_id"] and public.get("round") == payload["public"].get("round")

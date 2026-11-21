@@ -390,11 +390,11 @@ func _refresh_controls() -> void:
 		"choosing":
 			var in_round: bool = game.public.get("alive", []).has(game.local_id())
 			primary_button.text = "不出牌" if in_round else "观战"
-			if in_round and not game.sealed_hash.is_empty():
+			if in_round and game._locked:
 				primary_button.text = "已锁定"
+			elif in_round and game._submitting:
+				primary_button.text = "提交中"
 			primary_button.disabled = not can_act
-		"revealing":
-			primary_button.text = "揭晓中"
 		"settlement":
 			primary_button.text = "跳过超级卡" if can_use_super else "确认结算"
 			if game.settlement_submitted:
@@ -424,8 +424,10 @@ func _update_status() -> void:
 			status = "%d 人存活   /   %d 秒" % [alive.size(), game.seconds_left()]
 		if not alive.has(game.local_id()):
 			status += "   /   观战"
-		elif not game.sealed_hash.is_empty():
+		elif game._locked:
 			status += "   /   已锁定"
+		elif game._submitting:
+			status += "   /   提交中"
 	elif game.phase == "settlement":
 		status = "结算   /   位移 %+d   /   %d 秒" % [game.settlement_delta, game.seconds_left()]
 	elif game.phase == "ended":
@@ -434,7 +436,7 @@ func _update_status() -> void:
 	if status_label.text == status:
 		return
 	status_label.text = status
-	status_label.add_theme_color_override("font_color", CORAL if game.phase in ["revealing", "settlement", "result", "aborted"] else MUTED)
+	status_label.add_theme_color_override("font_color", CORAL if game.phase in ["settlement", "result", "aborted"] else MUTED)
 
 func _process(_delta: float) -> void:
 	if visible and game != null and game.phase in ["choosing", "settlement"]:
