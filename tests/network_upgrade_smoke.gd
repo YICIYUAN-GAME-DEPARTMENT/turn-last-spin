@@ -61,8 +61,15 @@ func _run_guest(code: String) -> void:
 		return
 	var player_id: int = _game.local_id()
 	var owner_id: int = _game.owner_id
+	var denial: Array[String] = []
+	var capture_denial := func():
+		if _game.status.begins_with("只有房主"):
+			denial.append(_game.status)
+	_game.changed.connect(capture_denial)
 	root.get_node("Main/Net").send_command("remove_member", {"code": code, "target_id": owner_id})
-	if not await _until(func(): return _game.status.begins_with("只有房主"), 4.0):
+	var denied := await _until(func(): return not denial.is_empty(), 4.0)
+	_game.changed.disconnect(capture_denial)
+	if not denied:
 		_fail("越权管理未被拒绝")
 		return
 	_game.set_ready(true)
@@ -75,8 +82,15 @@ func _run_guest(code: String) -> void:
 		_fail("服务端未确认承诺")
 		return
 	var old_peer: int = root.get_node("Main").multiplayer.get_unique_id()
+	var restored_phases: Array[String] = []
+	var capture_restore := func():
+		if _game.status == "对局状态已恢复。" and _game._locked:
+			restored_phases.append(_game.phase)
+	_game.changed.connect(capture_restore)
 	root.get_node("Main/Net").server_lost.emit()
-	if not await _until(func(): return _game.phase == "choosing" and _game._locked, 8.0):
+	var restored := await _until(func(): return "choosing" in restored_phases, 8.0)
+	_game.changed.disconnect(capture_restore)
+	if not restored:
 		_fail("选择阶段和锁定状态未恢复")
 		return
 	if _game.local_id() != player_id or root.get_node("Main").multiplayer.get_unique_id() == old_peer or _game.can_act() or _game.public["hands"][player_id] != original_hand:
