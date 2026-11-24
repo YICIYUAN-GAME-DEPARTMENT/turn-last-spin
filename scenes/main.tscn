@@ -96,7 +96,7 @@ custom_minimum_size = Vector2(74, 0)
 layout_mode = 2
 text = "24680"
 
-[node name="RoomCodeInput" type="LineEdit" parent="Margin/Layout/ConnectionRow"]
+[node name="RoomCodeInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=452314]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(125, 0)
 layout_mode = 2
@@ -164,25 +164,25 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "房主开始"
 
-[node name="MemberAdmin" type="HBoxContainer" parent="Margin/Layout/LobbyBox"]
+[node name="MemberAdmin" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=1834555886]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="MemberChoice" type="OptionButton" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+[node name="MemberChoice" type="OptionButton" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1018649011]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(155, 0)
 layout_mode = 2
 
-[node name="TransferOwner" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+[node name="TransferOwner" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1631355658]
 layout_mode = 2
 text = "转交房主"
 
-[node name="RemoveMember" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin"]
+[node name="RemoveMember" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1120841]
 layout_mode = 2
 text = "移出成员"
 
-[node name="LeaveRoom" type="Button" parent="Margin/Layout/LobbyBox"]
+[node name="LeaveRoom" type="Button" parent="Margin/Layout/LobbyBox" unique_id=255512655]
 layout_mode = 2
 text = "离开房间"
 

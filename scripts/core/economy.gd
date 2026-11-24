@@ -30,14 +30,32 @@ static func hidden_card_counts(state: Dictionary) -> Dictionary:
 	return counts
 
 static func purchase(state: Dictionary, id: int, kind: String) -> bool:
-	if not state.get("alive", []).has(id):
+	return purchase_many(state, id, {kind: 1})
+
+static func purchase_many(state: Dictionary, id: int, order: Dictionary) -> bool:
+	if not state.get("alive", []).has(id) or order.is_empty():
 		return false
-	var price: int = int(state["economy"]["prices"].get(kind, -1))
-	if price < 0 or int(state["balances"][id]) < price:
-		return false
-	state["balances"][id] -= price
+	var prices: Dictionary = state["economy"]["prices"]
 	var cards: Dictionary = state["special_cards"][id]
-	cards[kind] = int(cards.get(kind, 0)) + 1
+	var capacity := 0x7fff_ffff_ffff_ffff
+	for held in cards.values():
+		capacity -= int(held)
+	var balance: int = state["balances"][id]
+	for kind in order:
+		var quantity: Variant = order[kind]
+		var price: int = prices.get(kind, -1)
+		if not quantity is int or quantity <= 0 or price < 0:
+			return false
+		if quantity > capacity:
+			return false
+		capacity -= quantity
+		@warning_ignore("integer_division")
+		if price > balance / quantity:
+			return false
+		balance -= price * quantity
+	state["balances"][id] = balance
+	for kind in order:
+		cards[kind] = int(cards.get(kind, 0)) + order[kind]
 	return true
 
 static func consume(state: Dictionary, id: int, kind: String) -> void:

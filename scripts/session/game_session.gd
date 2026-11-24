@@ -7,7 +7,7 @@ const Rules = preload("res://scripts/core/game_rules.gd")
 const Commit = preload("res://scripts/network/action_commit.gd")
 const MatchSession = preload("res://scripts/server/match_session.gd")
 const EconomySettings = preload("res://scripts/core/economy_settings.gd")
-const INTRO_SECONDS := MatchSession.INTRO_SECONDS
+const PresentationTiming = preload("res://scripts/core/round_presentation_timing.gd")
 @export var economy_settings: EconomySettings = EconomySettings.new()
 const CONNECT_TIMEOUT := 8.0
 const RETRY_SECONDS := 1.0
@@ -25,14 +25,18 @@ var game_mode: Rules.Mode = Rules.Mode.CLASSIC
 var balance := 0
 var special_cards: Dictionary = {}
 var card_prices: Dictionary = {}
+var batch_purchases := false
 var economy_notice := ""
 var super_steps := 1
 var settlement_delta := 0
 var settlement_submitted := false
+var sealed_super := false
 var sealed_action: Dictionary = {}
 var sealed_hash := ""
 var sealed_nonce := ""
 var commit_count := 0
+var committed_ids: Array = []
+var settlement_ids: Array = []
 var _local_match: MatchSession
 var _local_serial := 0
 var public: Dictionary = {}
@@ -118,14 +122,22 @@ func all_ready() -> bool:
 func seconds_left() -> int:
 	if phase not in ["choosing", "settlement"]:
 		return 0
-	return maxi(0, ceili(float(_deadline_ms - Time.get_ticks_msec()) / 1000.0))
+	return ceili(phase_time_left())
+
+func phase_time_left() -> float:
+	return maxf(0.0, float(_deadline_ms - Time.get_ticks_msec()) / 1000.0)
 
 func can_buy_cards() -> bool:
 	return phase in ["choosing", "settlement", "result"] and public.get("alive", []).has(local_id())
 
+func table_action() -> Dictionary:
+	if phase in ["choosing", "settlement"] and (_submitting or _locked):
+		return sealed_action
+	return {}
+
 func special_card_count(kind: String) -> int:
 	var owned: int = int(special_cards.get(kind, 0))
-	if sealed_action.get("type") == kind and phase in ["choosing", "settlement"]:
+	if table_action().get("type") == kind or (kind == "super" and phase == "settlement" and sealed_super):
 		return maxi(0, owned - 1)
 	return owned
 
@@ -133,10 +145,29 @@ func can_settle() -> bool:
 	return phase == "settlement" and not settlement_submitted and public.get("alive", []).has(local_id())
 
 func buy_special_card(kind: String) -> void:
-	var price: int = int(card_prices.get(kind, -1))
-	if not can_buy_cards() or price < 0 or price > balance:
+	buy_special_cards({kind: 1})
+
+func buy_special_cards(order: Dictionary) -> void:
+	if not can_buy_cards() or order.is_empty():
 		return
-	var payload := {"match_id": match_id, "kind": kind}
+	var remaining := balance
+	for kind in order:
+		var quantity: Variant = order[kind]
+		var price: int = card_prices.get(kind, -1)
+		if not quantity is int or quantity <= 0 or price < 0:
+			return
+		@warning_ignore("integer_division")
+		if price > remaining / quantity:
+			return
+		remaining -= price * quantity
+	var payload := {"match_id": match_id}
+	var first: Variant = order.keys()[0]
+	if order.size() == 1 and order[first] == 1:
+		payload["kind"] = first
+	elif batch_purchases:
+		payload["order"] = order
+	else:
+		return
 	if role == "local":
 		_local_match.purchase(1, payload)
 	else:
@@ -146,6 +177,7 @@ func submit_settlement(use_super: bool) -> void:
 	if not can_settle() or (use_super and special_card_count("super") < 1):
 		return
 	settlement_submitted = true
+	sealed_super = use_super
 	changed.emit()
 	var payload := {"match_id": match_id, "round": public["round"], "use_super": use_super}
 	if role == "local":
@@ -280,6 +312,9 @@ func _clear_match() -> void:
 	last_result = {}
 	confirmed_count = 0
 	commit_count = 0
+	committed_ids.clear()
+	settlement_ids.clear()
+	sealed_super = false
 	_submitting = false
 	_locked = false
 	sealed_hash = ""
@@ -288,6 +323,7 @@ func _clear_match() -> void:
 	balance = 0
 	special_cards.clear()
 	card_prices.clear()
+	batch_purchases = false
 	economy_notice = ""
 	settlement_delta = 0
 	settlement_submitted = false
@@ -330,6 +366,7 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			last_result.clear()
 			game_mode = payload.get("mode", Rules.Mode.CLASSIC)
 			card_prices = payload.get("card_prices", {}).duplicate()
+			batch_purchases = payload.get("batch_purchases", false)
 			super_steps = int(payload.get("super_steps", 1))
 			balance = 0
 			special_cards.clear()
@@ -355,7 +392,12 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			if payload.get("match_id") != match_id:
 				return
 			phase = "round_intro"
+			committed_ids.clear()
+			settlement_ids.clear()
+			sealed_super = false
 			public = payload.get("public", {}).duplicate(true)
+			var duration := float(payload.get("duration", PresentationTiming.DEFAULT_TURN_INTRO_SECONDS))
+			_deadline_ms = Time.get_ticks_msec() + roundi(duration * 1000.0)
 			_set_status("准备发牌")
 		"round_started":
 			match_id = int(payload["match_id"])
@@ -364,6 +406,9 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			initial_lives = int(public.get("initial_lives", initial_lives))
 			phase = "choosing"
 			commit_count = 0
+			committed_ids.clear()
+			settlement_ids.clear()
+			sealed_super = false
 			_submitting = false
 			_locked = false
 			sealed_hash = ""
@@ -376,17 +421,27 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 			_locked = true
 			_set_status("服务端已锁定本轮行动。")
 		"commit_count", "confirmed_count":
+			if payload.get("match_id", match_id) != match_id or payload.get("round", public.get("round")) != public.get("round"):
+				return
 			commit_count = int(payload.get("count", 0))
 			confirmed_count = commit_count
+			committed_ids = payload.get("ids", committed_ids).duplicate()
 			changed.emit()
 		"settlement_started":
 			phase = "settlement"
 			settlement_delta = int(payload.get("delta", 0))
 			settlement_submitted = false
+			sealed_super = false
+			settlement_ids.clear()
 			_deadline_ms = Time.get_ticks_msec() + int(float(payload.get("duration", 5.0)) * 1000.0)
 			_set_status("结算阶段，可使用超级卡。")
+		"settlement_confirmed":
+			if phase == "settlement" and payload.get("match_id") == match_id and payload.get("round") == public.get("round"):
+				settlement_ids = payload.get("ids", []).duplicate()
+				changed.emit()
 		"settlement_rejected":
 			settlement_submitted = false
+			sealed_super = false
 			_set_status("超级卡确认失败，请重新选择。")
 		"match_snapshot":
 			_apply_snapshot(payload)
@@ -399,6 +454,8 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 					sealed_action.clear()
 				_set_status(str(payload.get("message", "操作被拒绝")))
 		"round_result":
+			if last_result.get("round", -1) != payload.get("round", -1):
+				_update_result_inventory(payload)
 			last_result = payload.duplicate(true)
 			public = payload.get("public", {}).duplicate(true)
 			game_mode = public.get("mode", game_mode)
@@ -410,6 +467,18 @@ func _on_client_event(kind: String, payload: Dictionary) -> void:
 		"error":
 			_set_status(str(payload.get("message", "网络错误")))
 
+func _update_result_inventory(payload: Dictionary) -> void:
+	var id := local_id()
+	if not payload.get("public", {}).get("alive", []).has(id):
+		special_cards.clear()
+		return
+	for action in payload.get("actions", []):
+		var kind: String = action["type"]
+		if action["peer_id"] == id and kind in ["defense", "change"]:
+			special_cards[kind] = maxi(0, int(special_cards.get(kind, 0)) - 1)
+	if payload.get("super_users", []).has(id):
+		special_cards["super"] = maxi(0, int(special_cards.get("super", 0)) - 1)
+
 func _apply_snapshot(payload: Dictionary) -> void:
 	var same_round: bool = match_id == payload["match_id"] and public.get("round") == payload["public"].get("round")
 	match_id = payload["match_id"]
@@ -417,17 +486,22 @@ func _apply_snapshot(payload: Dictionary) -> void:
 	public = payload["public"].duplicate(true)
 	game_mode = payload.get("mode", game_mode)
 	card_prices = payload.get("card_prices", {}).duplicate()
+	batch_purchases = payload.get("batch_purchases", false)
 	super_steps = int(payload.get("super_steps", super_steps))
 	var wallet: Dictionary = payload.get("wallet", {})
 	balance = int(wallet.get("balance", 0))
 	special_cards = wallet.get("cards", {}).duplicate()
 	last_result = payload.get("last_result", {}).duplicate(true)
 	commit_count = int(payload.get("confirmed_count", 0))
+	committed_ids = payload.get("committed_ids", []).duplicate()
+	settlement_ids = payload.get("settlement_ids", []).duplicate()
 	confirmed_count = commit_count
 	_locked = bool(payload.get("locked", false))
 	_submitting = false
 	settlement_delta = int(payload.get("settlement_delta", 0))
 	settlement_submitted = bool(payload.get("settlement_submitted", false))
+	if not same_round or not settlement_submitted:
+		sealed_super = false
 	_deadline_ms = Time.get_ticks_msec() + int(payload.get("remaining_ms", 0))
 	if not same_round:
 		sealed_action.clear()

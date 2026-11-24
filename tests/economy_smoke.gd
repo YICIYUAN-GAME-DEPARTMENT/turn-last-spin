@@ -26,6 +26,12 @@ func _run() -> void:
 
 	var settings = Settings.new()
 	settings.starting_balance = 600
+	var orders: Dictionary = Rules.make_state([1, 2], 1, settings.values())
+	_check(not Economy.purchase_many(orders, 1, {"defense": 2, "super": 1}), "unaffordable batch")
+	_check(not Economy.purchase_many(orders, 1, {"change": 1, "super": -1}), "invalid count rejects the entire batch")
+	_check(Economy.wallet(orders, 1) == {"balance": 600, "cards": {}}, "rejected batches leave the original wallet untouched")
+	_check(Economy.purchase_many(orders, 1, {"defense": 2, "change": 1}), "mixed batch at existing prices")
+	_check(Economy.wallet(orders, 1) == {"balance": 300, "cards": {"defense": 2, "change": 1}}, "one debit, multiple private cards")
 	var shield: Dictionary = Rules.make_state([1, 2], 2, settings.values())
 	shield["initial_index"] = 0
 	_check(Economy.purchase(shield, 1, "defense"), "buy defense")

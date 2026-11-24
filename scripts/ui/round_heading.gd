@@ -40,6 +40,6 @@ func _draw() -> void:
 	var height := roundi(lerpf(23.0, float(normal), slide) + 16.0 * pulse)
 	var number_size := font.get_string_size(str(number), HORIZONTAL_ALIGNMENT_LEFT, -1, height)
 	var y := (size.y - font.get_height(height)) * 0.5 + font.get_ascent(height) + 25.0 * (1.0 - slide)
-	var tint := ink.lerp(Color("91e7c2"), pulse)
+	var tint := ink.lerp(Color("983f30"), pulse)
 	draw_string(font, Vector2(center_x - number_size.x * 0.5, y), str(number),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, height, Color(tint, slide))

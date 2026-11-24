@@ -7,11 +7,12 @@ const Rules = preload("res://scripts/core/game_rules.gd")
 const Commit = preload("res://scripts/network/action_commit.gd")
 const Economy = preload("res://scripts/core/economy.gd")
 const Settings = preload("res://scripts/core/economy_settings.gd")
-const INTRO_SECONDS := 1.0
+const PresentationTiming = preload("res://scripts/core/round_presentation_timing.gd")
 const CHOOSE_SECONDS := 15.0
 const NEXT_ROUND_DELAY := 2.5
-const REWARD_ROUND_DELAY := 3.9
+const RESULT_SYNC_MARGIN := 0.15
 
+var _presentation_timing = preload("res://ui/round_presentation_timing.tres")
 var _match_id := 0
 var _state: Dictionary = {}
 var _commits: Dictionary = {}
@@ -37,7 +38,7 @@ func start(match_id: int, player_ids: Array, initial_lives: int, mode: Rules.Mod
 	_last_result.clear()
 	room_update.emit("match_started", {
 		"match_id": _match_id, "mode": mode, "card_prices": _state["economy"]["prices"].duplicate(),
-		"super_steps": _state["economy"]["super_steps"]
+		"super_steps": _state["economy"]["super_steps"], "batch_purchases": true
 	})
 	_sync_wallets()
 	if _state["phase"] == "ended":
@@ -71,16 +72,21 @@ func submit_commit(player_id: int, payload: Dictionary) -> void:
 	_commits[player_id] = hash_text
 	_actions[player_id] = action.duplicate(true)
 	_player(player_id, "commit_ack", {"round": _state["round"]})
-	room_update.emit("commit_count", {"count": _commits.size()})
+	_publish_commit_count(_commits.keys())
 	_finish_if_ready()
 
 func purchase(player_id: int, payload: Dictionary) -> void:
 	if payload.get("match_id") != _match_id or _state.get("phase") not in ["choosing", "settlement", "result"]:
 		return
-	var kind: Variant = payload.get("kind")
-	if not kind is String or _offline.has(player_id):
+	if _offline.has(player_id):
 		return
-	var success := Economy.purchase(_state, player_id, kind)
+	var success := false
+	var order: Variant = payload.get("order")
+	var kind: Variant = payload.get("kind")
+	if order is Dictionary:
+		success = Economy.purchase_many(_state, player_id, order)
+	elif kind is String:
+		success = Economy.purchase(_state, player_id, kind)
 	_send_wallet(player_id, "已加入我的手牌。" if success else "购买失败：余额不足或不能购买。")
 	if success:
 		room_update.emit("hidden_cards", {"match_id": _match_id, "round": _state["round"],
@@ -94,6 +100,8 @@ func submit_settlement(player_id: int, payload: Dictionary) -> void:
 		_player(player_id, "settlement_rejected", {})
 		return
 	_settlement_choices[player_id] = use_super
+	room_update.emit("settlement_confirmed", {"match_id": _match_id, "round": _state["round"],
+		"ids": _settlement_choices.keys()})
 	_finish_settlement_if_ready()
 
 func submit_local_action(player_id: int, action: Dictionary) -> void:
@@ -120,10 +128,11 @@ func player_reconnected(player_id: int) -> void:
 
 func snapshot_for(player_id: int) -> Dictionary:
 	return {"match_id": _match_id, "phase": _state["phase"], "public": Rules.public_state(_state),
-		"mode": _state["mode"], "card_prices": _state["economy"]["prices"].duplicate(),
+		"mode": _state["mode"], "card_prices": _state["economy"]["prices"].duplicate(), "batch_purchases": true,
 		"super_steps": _state["economy"]["super_steps"], "wallet": Economy.wallet(_state, player_id),
 		"remaining_ms": maxi(0, _deadline_ms - Time.get_ticks_msec()),
 		"confirmed_count": _commits.size(), "locked": _commits.has(player_id),
+		"committed_ids": _commits.keys(), "settlement_ids": _settlement_choices.keys(),
 		"settlement_submitted": _settlement_choices.has(player_id),
 		"settlement_delta": Rules.preview_delta(_state, _actions) if _state["phase"] == "settlement" else 0,
 		"last_result": _last_result.duplicate(true)}
@@ -154,9 +163,11 @@ func _begin_intro() -> void:
 	if _state["alive"].size() < 2:
 		return
 	_state["phase"] = "round_intro"
-	room_update.emit("round_intro", {"match_id": _match_id, "public": Rules.public_state(_state)})
-	_timer.start(INTRO_SECONDS)
-	_deadline_ms = Time.get_ticks_msec() + int(INTRO_SECONDS * 1000)
+	var duration: float = _presentation_timing.turn_intro_seconds
+	_deadline_ms = Time.get_ticks_msec() + roundi(duration * 1000.0)
+	_timer.start(duration)
+	room_update.emit("round_intro", {"match_id": _match_id,
+		"public": Rules.public_state(_state), "duration": duration})
 
 func _begin_round() -> void:
 	Rules.begin_round(_state, _rng)
@@ -164,9 +175,10 @@ func _begin_round() -> void:
 	_actions.clear()
 	_settlement_choices.clear()
 	_last_result.clear()
-	_timer.start(CHOOSE_SECONDS)
-	_deadline_ms = Time.get_ticks_msec() + int(CHOOSE_SECONDS * 1000)
-	room_update.emit("round_started", {"match_id": _match_id, "public": Rules.public_state(_state), "duration": CHOOSE_SECONDS})
+	var duration: float = CHOOSE_SECONDS + _presentation_timing.wheel_stop_hold + PresentationTiming.INITIAL_CAMERA_RETURN_SECONDS
+	_timer.start(duration)
+	_deadline_ms = Time.get_ticks_msec() + int(duration * 1000)
+	room_update.emit("round_started", {"match_id": _match_id, "public": Rules.public_state(_state), "duration": duration})
 	if _local_player_id != 0:
 		for id in _state["alive"]:
 			if id == _local_player_id:
@@ -176,10 +188,15 @@ func _begin_round() -> void:
 				var hand: Array = _state["hands"][id]
 				action = {"type": "play", "card_id": hand.back()["id"], "sign": 1 if _rng.randi_range(0, 1) == 1 else -1}
 			_actions[id] = action
+		_publish_commit_count(_actions.keys())
 		if not _state["alive"].has(_local_player_id):
 			_begin_settlement()
 	else:
 		_finish_if_ready()
+
+func _publish_commit_count(ids: Array) -> void:
+	room_update.emit("commit_count", {"match_id": _match_id, "round": _state["round"],
+		"count": ids.size(), "ids": ids})
 
 func _finish_if_ready() -> void:
 	if _state.get("phase") != "choosing":
@@ -242,8 +259,12 @@ func _finish_settlement() -> void:
 			if int(_state["balances"][id]) > int(before.get(id, 0)):
 				paid = true
 				break
-		_timer.start(REWARD_ROUND_DELAY if paid else NEXT_ROUND_DELAY)
-		_deadline_ms = Time.get_ticks_msec() + int((REWARD_ROUND_DELAY if paid else NEXT_ROUND_DELAY) * 1000)
+		var delay: float = NEXT_ROUND_DELAY + _presentation_timing.wheel_stop_hold
+		if paid:
+			delay = (_presentation_timing.wheel_stop_hold + PresentationTiming.RESULT_WHEEL_SECONDS
+				+ PresentationTiming.REWARD_SEQUENCE_SECONDS + RESULT_SYNC_MARGIN)
+		_timer.start(delay)
+		_deadline_ms = Time.get_ticks_msec() + int(delay * 1000)
 
 func _abort(message: String) -> void:
 	_timer.stop()

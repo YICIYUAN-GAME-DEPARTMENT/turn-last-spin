@@ -65,9 +65,9 @@ func _notification(what: int) -> void:
 		var count := mini(per_row, _order.size() - row_start)
 		card.show_corner = count > 1
 		card.size = card.get_combined_minimum_size()
-		var spacing := minf(54.0, (size.x - card.size.x - 38.0) / maxi(1, count - 1))
+		var spacing := minf(card.size.x * 0.84, (size.x - card.size.x - 38.0) / maxi(1, count - 1))
 		var offset := column - (count - 1) * 0.5
-		var angle := clampf(offset * 7.0, -17.0, 17.0)
+		var angle := clampf(offset * 12.0, -17.0, 17.0)
 		card.pivot_offset = card.size * 0.5
 		card.rotation = deg_to_rad(angle)
 		var center := Vector2(size.x * 0.5 + offset * spacing,

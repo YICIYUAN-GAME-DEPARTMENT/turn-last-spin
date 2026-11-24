@@ -1,15 +1,20 @@
 extends Control
-## 先在桌面中央报出本轮收益，再把金币送到本人的钱包。
+## 滚动揭晓结算公式和到账金额，再把筹码送入钱包。
+
+const Sketch = preload("res://scripts/ui/sketch_ink.gd")
+const Timing = preload("res://scripts/core/round_presentation_timing.gd")
+const Reel = preload("res://scripts/ui/reward_reel.gd")
+
 signal delivered(gain: int)
+
 @onready var panel: Panel = $Panel
-@onready var rate_label: Label = $Panel/Formula/Rate
-@onready var times: Label = $Panel/Formula/Times
-@onready var slot: Control = $Panel/Formula/Slot
-@onready var current: Label = $Panel/Formula/Slot/Current
-@onready var following: Label = $Panel/Formula/Slot/Following
-@onready var receipt: Control = $Panel/Window
-@onready var share: Label = $Panel/Window/Share
-@onready var reels = $Panel/Window/Reels
+@onready var rate: Reel = $Panel/Formula/Rate
+@onready var operator: Reel = $Panel/Formula/Operator
+@onready var steps_reel: Reel = $Panel/Formula/Steps
+@onready var share: Control = $Panel/Receipt/Share
+@onready var share_reel: Reel = $Panel/Receipt/Share/Reel
+@onready var total: Reel = $Panel/Receipt/Total/Reel
+
 var _sequence: Tween
 var _destination: Control
 var _flight: float = -1.0:
@@ -23,65 +28,79 @@ func play(gain: int, result: Dictionary, destination: Control) -> void:
 	panel.modulate.a = 1.0
 	var steps: int = result.reward_steps
 	var seats: int = result.actions.size()
-	# 主机已按本局配置结算出牌奖励，分得的余额单列。
+	# 使用主机结算出的奖励和实际分得的筹码。
 	@warning_ignore("integer_division")
-	var rate: int = int(result.play_reward) / steps
-	var extra: int = gain - int(result.play_reward)
-	rate_label.text = "%dr" % rate
-	times.hide()
-	slot.hide()
-	receipt.hide()
-	share.text = "另分得 %dr" % extra if extra > 0 else "本轮合计"
-	reels.set_amount(0, false)
+	var coefficient: int = int(result.play_reward) / steps
+	var inherited: int = gain - int(result.play_reward)
+	rate.prepare([_amount_track(coefficient, "r")])
+	operator.prepare([PackedStringArray(["", "·", "×", "·", "×"])])
+	steps_reel.prepare([_step_track(steps, seats)])
+	share.visible = inherited > 0
+	if share.visible:
+		share_reel.prepare([_amount_track(inherited, "r", "+")])
+	total.prepare(_total_tracks(gain))
 	show()
 
 	_sequence = create_tween()
-	_sequence.tween_interval(0.38)
-	_sequence.tween_callback(func():
-		times.show()
-		slot.scale = Vector2.ONE
-		slot.show())
-	var stop := seats * ceili(6.0 / seats) + steps - 1
-	_sequence.tween_method(_roll_multiplier.bind(seats), 0.0, float(stop), 0.76).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_sequence.tween_callback(func(): slot.pivot_offset = slot.size * 0.5)
-	_sequence.tween_property(slot, "scale", Vector2(1.16, 1.16), 0.08)
-	_sequence.tween_property(slot, "scale", Vector2.ONE, 0.12)
-	_sequence.tween_callback(func():
-		receipt.show()
-		reels.set_amount(gain, true, 0.28))
-	_sequence.tween_interval(0.66)
-	_sequence.tween_property(self, "_flight", 1.0, 0.48).from(0.0)
+	_sequence.tween_interval(Timing.REWARD_INTRO_SECONDS)
+	_sequence.tween_property(rate, "progress", 1.0, Timing.REWARD_RATE_SECONDS)
+	_sequence.tween_property(operator, "progress", 1.0, Timing.REWARD_OPERATOR_SECONDS)
+	_sequence.tween_property(steps_reel, "progress", 1.0, Timing.REWARD_STEPS_SECONDS)
+	if share.visible:
+		_sequence.tween_property(share_reel, "progress", 1.0, Timing.REWARD_SHARE_SECONDS)
+	_sequence.tween_property(total, "progress", 1.0, Timing.REWARD_TOTAL_SECONDS)
+	_sequence.tween_interval(Timing.REWARD_READ_SECONDS)
+	_sequence.tween_property(self, "_flight", 1.0, Timing.REWARD_FLIGHT_SECONDS).from(0.0)
 	_sequence.parallel().tween_property(panel, "modulate:a", 0.0, 0.19)
 	_sequence.tween_callback(func():
 		hide()
+		_sequence = null
 		delivered.emit(gain))
 
-func _roll_multiplier(value: float, seats: int) -> void:
-	var index := floori(value)
-	var y := -(value - index) * slot.size.y
-	current.text = str(posmod(index, seats) + 1)
-	current.position.y = y
-	following.text = str(posmod(index + 1, seats) + 1)
-	following.position.y = y + slot.size.y
+func _amount_track(value: int, suffix: String, prefix: String = "") -> PackedStringArray:
+	var track := PackedStringArray([""])
+	for offset in [2, -1, 5, -3, 1, 0]:
+		track.append(prefix + str(maxi(0, value + offset)) + suffix)
+	return track
+
+func _step_track(steps: int, seats: int) -> PackedStringArray:
+	var track := PackedStringArray([""])
+	var cycles := ceili(7.0 / seats)
+	for i in range(seats * cycles + steps):
+		track.append(str(i % seats + 1))
+	return track
+
+func _total_tracks(gain: int) -> Array[PackedStringArray]:
+	var tracks: Array[PackedStringArray] = [PackedStringArray(["", "+", "·", "+"])]
+	var number := str(gain)
+	for column in range(number.length()):
+		var final_digit := int(number[column])
+		var track := PackedStringArray([""])
+		for offset in range(9):
+			track.append(str(posmod(final_digit + column * 3 + offset + 1, 10)))
+		track.append(str(final_digit))
+		tracks.append(track)
+	tracks.append(PackedStringArray(["", "r", "", "r"]))
+	return tracks
 
 func cancel() -> void:
 	if _sequence:
 		_sequence.kill()
+		_sequence = null
 	_flight = -1.0
 	hide()
 
 func _draw() -> void:
 	if _flight < 0.0 or not is_instance_valid(_destination):
 		return
-	var start := size * 0.5
-	var end := get_global_transform().affine_inverse() * _destination.get_global_rect().get_center()
-	for i in 5:
+	var inverse := get_global_transform().affine_inverse()
+	var start := inverse * total.get_global_rect().get_center()
+	var end := inverse * _destination.get_global_rect().get_center()
+	for i in range(5):
 		var t := (_flight - i * 0.055) / 0.78
 		if t < 0.0 or t > 1.0:
 			continue
 		var pos := start.lerp(end, t)
 		pos.y -= sin(t * PI) * (45.0 + i * 7.0)
 		var radius := lerpf(10.0, 5.0, t)
-		draw_circle(pos, radius, Color("ffd978"), true, -1.0, true)
-		draw_arc(pos, radius * 0.73, 0, TAU, 24, Color("b7782f"), 1.5, true)
-		draw_line(pos - Vector2(0, radius * 0.36), pos + Vector2(0, radius * 0.36), Color("a36728"), 2.0, true)
+		Sketch.chip(self, pos, radius, Sketch.ACCENT, 0.7 + 0.3 * cos(t * TAU))

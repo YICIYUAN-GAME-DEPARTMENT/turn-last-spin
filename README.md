@@ -8,7 +8,14 @@ Godot **4.7.1** / GDScript / Windows / Compatibility。
 
 ### 本地试玩（不联网）
 
-打开工程按 **F5**，在启动菜单选择「本地游戏 → 经典模式/贪婪模式」。也可以用 **F6** 运行 `scenes/local_test.tscn`。本地自动玩家与联网对局共用 `MatchSession`、`GameRules` 和 `Economy`；可以调整玩家人数与初始生命，并体验扇形手牌、商店、金币奖励动画和轮盘结算。
+打开工程按 **F5**，在启动菜单选择「本地游戏 → 经典模式/贪婪模式」。也可以用 **F6** 运行 `scenes/local_test.tscn`。本地自动玩家与联网对局共用 `MatchSession`、`GameRules` 和 `Economy`；可以调整玩家人数与初始生命。出牌时采用草图牌桌和扇形手牌，转盘转动时镜头升到正俯视，结束后回到出牌视角。
+
+点击左下角的商店盒子查看三种特殊牌，悬停看说明。可调整每个槽的购买数量，点击对应的购买按钮，右键或左下角按钮返回。筹码是原金币钱包的界面表现，继续使用 r 单位。联网一次购买多张需要支持批量订单的专服。
+
+
+玩家锁定后，桌面用相同牌背显示其他玩家的提交。结算转动前翻开出过的牌，空过的牌背收起。
+
+打开 `scenes/ui/match_view.tscn`，在 MatchView 的检查器展开 `Presentation Timing`，可调整 `Turn Intro Seconds`（开场显示时长，默认 1 秒）与 `Wheel Stop Hold`（停盘时长）。专服也使用同一资源安排开场和发牌。
 
 ### 本地专服联机
 
@@ -72,6 +79,7 @@ godot --headless --path . --script res://tests/economy_smoke.gd
 godot --headless --path . --script res://tests/greed_smoke.gd
 godot --headless --path . --script res://tests/local_session_smoke.gd
 godot --headless --path . --script res://tests/disconnect_settlement_smoke.gd
+godot --path . --script res://tests/sketch_match_smoke.gd
 ```
 
 网络测试先启动上述本地专服，再在两个终端运行：

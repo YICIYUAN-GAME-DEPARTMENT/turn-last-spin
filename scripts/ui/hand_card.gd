@@ -1,6 +1,8 @@
 @tool
 extends Button
 
+const Sketch = preload("res://scripts/ui/sketch_ink.gd")
+
 const SPECIAL_NAMES := {"defense": "防御卡", "change": "变化卡", "super": "超级卡"}
 const SPECIAL_HINTS := {
 	"defense": "出牌阶段使用，保住最后 1 点生命",
@@ -29,9 +31,14 @@ var show_corner: bool = false:
 			queue_redraw()
 
 func _draw() -> void:
+	var ink := Sketch.INK if kind == "play" else Sketch.ACCENT
+	if size.x > 25:
+		var rect := Rect2(Vector2(5, 5), size - Vector2(10, 10))
+		var corners := PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y),
+			rect.end, Vector2(rect.position.x, rect.end.y), rect.position])
+		Sketch.stroke(self, corners, Color(ink, 0.34), 0.95)
 	if show_corner:
 		var mark := str(value) if kind == "play" else str(SPECIAL_NAMES[kind]).left(1)
-		var ink := Color("29483e") if kind == "play" else Color("ead3f1")
 		draw_string(get_theme_default_font(), Vector2(8, 22), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, ink)
 
 func _ready() -> void:

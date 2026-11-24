@@ -1,0 +1,7 @@
+[gd_resource type="Resource" format=3 uid="uid://62c8bdm3ojsr"]
+
+[ext_resource type="Script" uid="uid://b4murk6ymjx3m" path="res://scripts/core/round_presentation_timing.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+wheel_stop_hold = 0.7
