@@ -117,6 +117,7 @@ func present() -> void:
 		wheel.clear_placements()
 		wheel.table_cards = {}
 		wheel.seats = []
+		wheel.figure_seats = []
 		wheel.queue_redraw()
 		_render_statistics()
 	elif phase == "settlement" and _round_key != round_key:
@@ -297,6 +298,14 @@ func _show_wheel(result: Dictionary) -> void:
 			wheel.number_scale = 1.0 + 0.22 * sin(PI * t)
 			wheel.queue_redraw(), 0.0, 1.0, presentation_timing.RESULT_NUMBER_PULSE_SECONDS)
 		_tween_table_height(1.0, 0.0, presentation_timing.RESULT_CAMERA_RETURN_SECONDS)
+		var eliminated: int = result.get("eliminated", 0)
+		if eliminated != 0:
+			_animation.tween_callback(func():
+				wheel.tombstone_player_id = eliminated
+				wheel.tombstone_fall = 0.0
+				wheel.tombstone_impact = 0.0)
+			_animation.tween_property(wheel, "tombstone_fall", 1.0, presentation_timing.TOMBSTONE_FALL_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			_animation.tween_property(wheel, "tombstone_impact", 1.0, presentation_timing.TOMBSTONE_IMPACT_SECONDS)
 	_animation.finished.connect(_on_wheel_animation_finished.bind(result))
 
 func _on_wheel_animation_finished(result: Dictionary) -> void:
@@ -304,6 +313,7 @@ func _on_wheel_animation_finished(result: Dictionary) -> void:
 	_presenting_result = false
 	if not result.is_empty():
 		_update_wheel_seats(result)
+		wheel.tombstone_player_id = 0
 		_render_statistics()
 		_render_hand()
 		_sync_wallet(true)
@@ -343,6 +353,7 @@ func _update_wheel_seats(result: Dictionary) -> void:
 	var visible_state: Dictionary = _round_state if _presenting_result else game.public
 	var counts: Dictionary = visible_state.get("hidden_card_counts", {})
 	var round_counts: Dictionary = _round_state.get("hidden_card_counts", {})
+	var seats_by_id := {}
 	for id in _round_state.get("alive", []):
 		var cards: Array = []
 		for card in _round_state["hands"].get(id, []):
@@ -359,11 +370,22 @@ func _update_wheel_seats(result: Dictionary) -> void:
 			seat["balance"] = visible_state.balances.get(id, 0)
 		if game.game_mode == Rules.Mode.CLASSIC:
 			seat["hp"] = visible_state.get("lives", {}).get(id, 0)
-			seat["alive"] = seat["hp"] > 0
 		seats.append(seat)
+		seats_by_id[id] = seat
+	var figure_seats: Array = []
+	if game.game_mode == Rules.Mode.CLASSIC:
+		# Original room order keeps the silhouettes and tombstones in the same positions.
+		var alive: Array = visible_state.get("alive", [])
+		for member in game.members:
+			var id: int = member.id
+			if not alive.has(id):
+				figure_seats.append({"id": id, "name": member.name, "eliminated": true})
+			elif seats_by_id.has(id):
+				figure_seats.append(seats_by_id[id])
 	_wheel_balances = visible_state.get("balances", {}).duplicate()
 	_wheel_hidden_counts = counts.duplicate()
 	wheel.seats = seats
+	wheel.figure_seats = figure_seats
 	wheel.local_player_id = game.local_id()
 	wheel.front_index = maxi(0, seats.find_custom(func(seat): return seat.id == game.local_id()))
 	wheel.queue_redraw()
@@ -469,6 +491,7 @@ func _stop_animation() -> void:
 	_finish_hand_deal()
 	_initial_spin = false
 	_presenting_result = false
+	wheel.tombstone_player_id = 0
 	wheel.play_progress = 1.0
 	wheel.number_scale = 1.0
 	wheel.deal_progress = 1.0

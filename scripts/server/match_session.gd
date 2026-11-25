@@ -263,6 +263,8 @@ func _finish_settlement() -> void:
 		if paid:
 			delay = (_presentation_timing.wheel_stop_hold + PresentationTiming.RESULT_WHEEL_SECONDS
 				+ PresentationTiming.REWARD_SEQUENCE_SECONDS + RESULT_SYNC_MARGIN)
+		if int(outcome.get("eliminated", 0)) != 0:
+			delay += PresentationTiming.TOMBSTONE_FALL_SECONDS + PresentationTiming.TOMBSTONE_IMPACT_SECONDS
 		_timer.start(delay)
 		_deadline_ms = Time.get_ticks_msec() + int(delay * 1000)
 

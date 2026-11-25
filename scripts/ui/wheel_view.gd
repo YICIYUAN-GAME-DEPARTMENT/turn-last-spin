@@ -13,6 +13,7 @@ const DIAL_EDGE := Color("806d56")
 const DIAL_LINE := Color("a99476")
 
 var seats: Array = []
+var figure_seats: Array = []
 var local_player_id = 0
 var front_index = 0
 var start_index = 0
@@ -39,6 +40,15 @@ var deal_progress := 1.0:
 var play_progress := 1.0:
 	set(value):
 		play_progress = value
+		queue_redraw()
+var tombstone_player_id := 0
+var tombstone_fall := 0.0:
+	set(value):
+		tombstone_fall = value
+		queue_redraw()
+var tombstone_impact := 1.0:
+	set(value):
+		tombstone_impact = value
 		queue_redraw()
 var number_scale := 1.0
 var showing_actions := false
@@ -72,7 +82,7 @@ func _editor_preview() -> void:
 	seats.clear()
 	for i in range(preview_players):
 		seats.append({"id": i, "name": String.chr(96 + i),
-			"alive": true, "cards": [{"id": i, "value": (i * 3 + 2) % preview_players + 1,
+			"cards": [{"id": i, "value": (i * 3 + 2) % preview_players + 1,
 			"face_up": true, "played": false, "sign": 0}]})
 	start_index = 0
 	center_steps = "1"
@@ -112,6 +122,8 @@ func _draw() -> void:
 	_draw_deck(center, oval)
 	_draw_pointer(center, oval)
 	_draw_deal_flights(center, oval)
+	if view_height < 0.92:
+		_draw_own_tombstone(center, oval)
 
 func _table_radius() -> float:
 	return minf(size.x * 0.389, size.y * 0.54)
@@ -266,9 +278,11 @@ func _timer_ink() -> Color:
 	return Sketch.MUTED if countdown_seconds < 0 else Sketch.INK
 
 func _draw_opponents(center: Vector2, oval: Vector2) -> void:
+	var lineup := figure_seats if not figure_seats.is_empty() else seats
+	var front := maxi(0, lineup.find_custom(func(seat): return seat.id == local_player_id))
 	var opponents: Array = []
-	for offset in range(1, seats.size() + 1):
-		var seat = seats[(front_index + offset) % seats.size()]
+	for offset in range(1, lineup.size() + 1):
+		var seat = lineup[(front + offset) % lineup.size()]
 		if seat.id != local_player_id:
 			opponents.append(seat)
 	var opacity = 1.0 - smoothstep(0.05, 0.92, view_height)
@@ -280,8 +294,11 @@ func _draw_opponents(center: Vector2, oval: Vector2) -> void:
 		var at = Vector2(center.x + oval.x * spread, center.y - oval.y * rim_height + 19.0)
 		var figure_scale = clampf(spacing / 105.0, 0.72, 1.17) * lerpf(1.18, 0.83, rim_height)
 		var rotation = spread * 0.12
-		var seat_opacity = opacity if seat.get("alive", true) else opacity * 0.5
-		_draw_figure(at, figure_scale, rotation, seat_opacity, int(seat.id))
+		var dropping: bool = seat.id == tombstone_player_id
+		if seat.get("eliminated", false) or (dropping and tombstone_fall >= 1.0):
+			_draw_tombstone(at, figure_scale, rotation, opacity, str(seat.name), dropping)
+			continue
+		_draw_figure(at, figure_scale, rotation, opacity, int(seat.id))
 		var tag = at + Vector2(0, -134.0 * figure_scale - 14.0)
 		var badge: Array[String] = []
 		if seat.has("hp"):
@@ -291,8 +308,61 @@ func _draw_opponents(center: Vector2, oval: Vector2) -> void:
 		var label := str(seat.name).left(7)
 		if not badge.is_empty():
 			label += "  " + " · ".join(badge)
-		Sketch.centered(self, ui_font, label, tag, 12 if opponents.size() > 7 else 14, Color(Sketch.INK, seat_opacity))
-		_draw_public_cards(seat, tag + Vector2(0, -13.0), minf(spacing, 162.0), seat_opacity, i, opponents.size())
+		Sketch.centered(self, ui_font, label, tag, 12 if opponents.size() > 7 else 14, Color(Sketch.INK, opacity))
+		_draw_public_cards(seat, tag + Vector2(0, -13.0), minf(spacing, 162.0), opacity, i, opponents.size())
+		if dropping:
+			_draw_tombstone(at, figure_scale, rotation, opacity, str(seat.name), true)
+
+func _draw_own_tombstone(center: Vector2, oval: Vector2) -> void:
+	var dropping := tombstone_player_id != 0 and tombstone_player_id == local_player_id
+	var own := figure_seats.find_custom(func(seat): return seat.id == local_player_id)
+	if dropping or (own >= 0 and figure_seats[own].get("eliminated", false)):
+		var opacity := 1.0 - smoothstep(0.05, 0.92, view_height)
+		_draw_tombstone(center + Vector2(0.0, oval.y + 32.0), 0.94, 0.0, opacity, "你", dropping)
+
+func _draw_tombstone(at: Vector2, factor: float, rotation: float, opacity: float, player_name: String, dropping: bool) -> void:
+	var lift := (at.y + 18.0 * factor) * (1.0 - tombstone_fall) if dropping else 0.0
+	var impact := tombstone_impact if dropping and tombstone_fall >= 1.0 else 1.0
+	var squash := 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.52, impact))
+	var ink := Color(Sketch.INK, opacity)
+	var wear := Color(Sketch.MUTED, opacity * 0.62)
+	if lift > 10.0:
+		for x in [-22.0, 2.0, 21.0]:
+			var trail := at + Vector2(x * factor, -lift - 87.0 * factor)
+			Sketch.edge(self, trail - Vector2(0, 27.0 + lift * 0.10), trail, Color(Sketch.MUTED, opacity * 0.48))
+
+	draw_set_transform(at - Vector2(0, lift), rotation, Vector2(factor, factor * squash))
+	var face := PackedVector2Array([Vector2(-34, 8), Vector2(-34, -55), Vector2(-28, -73),
+		Vector2(-15, -85), Vector2(1, -89), Vector2(17, -85), Vector2(29, -72),
+		Vector2(34, -56), Vector2(35, 8)])
+	var bevel := PackedVector2Array()
+	for point in face:
+		bevel.append(point + Vector2(6, -4))
+	Sketch.plane(self, bevel, Color("9b9181", opacity), ink)
+	Sketch.plane(self, face, Color("bdb4a2", opacity), ink)
+	var plinth := PackedVector2Array([Vector2(-39, 0), Vector2(38, 0), Vector2(43, 7),
+		Vector2(42, 15), Vector2(-43, 14), Vector2(-44, 7)])
+	Sketch.plane(self, plinth, Color("a89c89", opacity), ink)
+	Sketch.hatch(self, plinth, wear, 8.0)
+	Sketch.edge(self, Vector2(-43, 7), Vector2(43, 7), wear)
+	Sketch.edge(self, Vector2(0, -74), Vector2(0, -53), ink, 2.0)
+	Sketch.edge(self, Vector2(-8, -67), Vector2(9, -67), ink, 2.0)
+	Sketch.stroke(self, PackedVector2Array([Vector2(33, -25), Vector2(25, -20), Vector2(28, -14), Vector2(19, -8)]), wear)
+	Sketch.stroke(self, PackedVector2Array([Vector2(-25, -44), Vector2(-25, -53), Vector2(-19, -68), Vector2(-9, -75)]), wear)
+	Sketch.centered(self, ui_font, player_name.left(5), Vector2(0, -39), 13, ink)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+	if impact < 1.0:
+		_draw_tombstone_impact(at - Vector2(0, 18.0 * factor), factor, opacity, impact)
+
+func _draw_tombstone_impact(at: Vector2, factor: float, opacity: float, progress: float) -> void:
+	var dust := Color(Sketch.MUTED, opacity * (1.0 - progress) * 0.70)
+	for side in [-1.0, 1.0]:
+		for i in range(3):
+			var origin := at + Vector2(side * (35.0 + i * 6.0), 2.0 - i * 3.0) * factor
+			var ray := Vector2(side * (15.0 + i * 6.0), -24.0 + i * 7.0) * factor
+			Sketch.edge(self, origin + ray * progress, origin + ray * (progress + 0.46), dust, 1.8)
+			draw_circle(origin + ray * (progress * 1.7 + 0.45), (2.7 - i * 0.5) * factor, dust, true, -1.0, true)
 
 func _draw_figure(at: Vector2, factor: float, rotation: float, opacity: float, id: int) -> void:
 	var shoulders = -5 + (id * 7) % 13
