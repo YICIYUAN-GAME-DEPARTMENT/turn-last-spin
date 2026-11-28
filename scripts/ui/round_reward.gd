@@ -1,19 +1,19 @@
 extends Control
-## 滚动揭晓结算公式和到账金额，再把筹码送入钱包。
+## 本轮筹码结算凭单：机械滚轮揭晓公式与到账金额，随后飞出朱红筹码入账
 
-const Sketch = preload("res://scripts/ui/sketch_ink.gd")
+const Ink = preload("res://scripts/ui/editorial_ink.gd")
 const Timing = preload("res://scripts/core/round_presentation_timing.gd")
 const Reel = preload("res://scripts/ui/reward_reel.gd")
 
 signal delivered(gain: int)
 
-@onready var panel: Panel = $Panel
-@onready var rate: Reel = $Panel/Formula/Rate
-@onready var operator: Reel = $Panel/Formula/Operator
-@onready var steps_reel: Reel = $Panel/Formula/Steps
-@onready var share: Control = $Panel/Receipt/Share
-@onready var share_reel: Reel = $Panel/Receipt/Share/Reel
-@onready var total: Reel = $Panel/Receipt/Total/Reel
+@onready var panel: Control = $Panel
+@onready var rate: Reel = $Panel/VBox/Formula/Rate
+@onready var operator: Reel = $Panel/VBox/Formula/Operator
+@onready var steps_reel: Reel = $Panel/VBox/Formula/Steps
+@onready var share: Control = $Panel/VBox/Receipt/Share
+@onready var share_reel: Reel = $Panel/VBox/Receipt/Share/Reel
+@onready var total: Reel = $Panel/VBox/Receipt/Total/Reel
 
 var _sequence: Tween
 var _destination: Control
@@ -26,12 +26,13 @@ func play(gain: int, result: Dictionary, destination: Control) -> void:
 	cancel()
 	_destination = destination
 	panel.modulate.a = 1.0
-	var steps: int = result.reward_steps
-	var seats: int = result.actions.size()
-	# 使用主机结算出的奖励和实际分得的筹码。
+	var steps: int = maxi(1, int(result.get("reward_steps", 1)))
+	var seats: int = maxi(1, (result.get("actions", []) as Array).size())
+	var play_reward: int = int(result.get("play_reward", gain))
 	@warning_ignore("integer_division")
-	var coefficient: int = int(result.play_reward) / steps
-	var inherited: int = gain - int(result.play_reward)
+	var coefficient: int = play_reward / steps
+	var inherited: int = gain - play_reward
+
 	rate.prepare([_amount_track(coefficient, "r")])
 	operator.prepare([PackedStringArray(["", "·", "×", "·", "×"])])
 	steps_reel.prepare([_step_track(steps, seats)])
@@ -52,20 +53,21 @@ func play(gain: int, result: Dictionary, destination: Control) -> void:
 	_sequence.tween_interval(Timing.REWARD_READ_SECONDS)
 	_sequence.tween_property(self, "_flight", 1.0, Timing.REWARD_FLIGHT_SECONDS).from(0.0)
 	_sequence.parallel().tween_property(panel, "modulate:a", 0.0, 0.19)
-	_sequence.tween_callback(func():
+	_sequence.tween_callback(func() -> void:
 		hide()
 		_sequence = null
 		delivered.emit(gain))
 
 func _amount_track(value: int, suffix: String, prefix: String = "") -> PackedStringArray:
 	var track := PackedStringArray([""])
-	for offset in [2, -1, 5, -3, 1, 0]:
+	var offsets: Array[int] = [2, -1, 5, -3, 1, 0]
+	for offset in offsets:
 		track.append(prefix + str(maxi(0, value + offset)) + suffix)
 	return track
 
 func _step_track(steps: int, seats: int) -> PackedStringArray:
 	var track := PackedStringArray([""])
-	var cycles := ceili(7.0 / seats)
+	var cycles := ceili(7.0 / float(seats))
 	for i in range(seats * cycles + steps):
 		track.append(str(i % seats + 1))
 	return track
@@ -84,7 +86,7 @@ func _total_tracks(gain: int) -> Array[PackedStringArray]:
 	return tracks
 
 func cancel() -> void:
-	if _sequence:
+	if _sequence != null and _sequence.is_valid():
 		_sequence.kill()
 		_sequence = null
 	_flight = -1.0
@@ -97,10 +99,11 @@ func _draw() -> void:
 	var start := inverse * total.get_global_rect().get_center()
 	var end := inverse * _destination.get_global_rect().get_center()
 	for i in range(5):
-		var t := (_flight - i * 0.055) / 0.78
+		var t := (_flight - float(i) * 0.055) / 0.78
 		if t < 0.0 or t > 1.0:
 			continue
 		var pos := start.lerp(end, t)
-		pos.y -= sin(t * PI) * (45.0 + i * 7.0)
-		var radius := lerpf(10.0, 5.0, t)
-		Sketch.chip(self, pos, radius, Sketch.ACCENT, 0.7 + 0.3 * cos(t * TAU))
+		pos.y -= sin(t * PI) * (44.0 + float(i) * 7.0)
+		var r := lerpf(10.0, 5.5, t)
+		Ink.draw_diamond(self, pos, r * 0.85, r * 1.15, Ink.CRIMSON, true)
+		Ink.draw_diamond(self, pos, r * 0.85, r * 1.15, Ink.INK, false, 1.3)

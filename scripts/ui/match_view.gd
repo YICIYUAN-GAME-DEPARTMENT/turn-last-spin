@@ -1,5 +1,5 @@
 extends Control
-## 复用原型的对局布局，直接呈现团队 Session 的公开状态。
+## 固定正俯视角的冷战讽刺漫画对局主视图：协调轮盘、明牌席位、倒计时指挥条、手牌扇区与暗市商店
 
 signal menu_requested
 signal restart_requested
@@ -9,23 +9,26 @@ signal initial_lives_changed(lives: int)
 const HandCardScene = preload("res://scenes/ui/hand_card.tscn")
 const HandCard = preload("res://scripts/ui/hand_card.gd")
 const Rules = preload("res://scripts/core/game_rules.gd")
-const Sketch = preload("res://scripts/ui/sketch_ink.gd")
+const Ink = preload("res://scripts/ui/editorial_ink.gd")
 const DEAL_SECONDS := 0.68
 
 @onready var table: Control = $Table
 @onready var wheel = $Table/Wheel
+@onready var mode_badge: Label = %ModeBadge
 @onready var round_label = $Table/Round
 @onready var round_announcement: Label = $RoundAnnouncement
 @onready var status_label: Label = $Table/Status
-@onready var count_picker: OptionButton = $Table/Toolbar/PlayerCount
-@onready var ranking_label: Label = $Table/Ranking
-@onready var lives_picker: OptionButton = $Table/InitialLives
+@onready var count_picker: OptionButton = %PlayerCount
+@onready var lives_picker: OptionButton = %InitialLives
+@onready var ranking_panel: Control = %RankingPanel
+@onready var ranking_label: Label = %Ranking
+@onready var wallet_frame: Control = %WalletFrame
+@onready var coins = %Reels
 @onready var hand_panel: Control = $Table/HandPanel
 @onready var reward = $RoundReward
-@onready var coins = $Table/CoinWindow/Reels
 @onready var shop = $SpecialShop
-@onready var restart_button: Button = $Table/Toolbar/Restart
-@onready var menu_button: Button = $Table/Toolbar/Menu
+@onready var restart_button: Button = %Restart
+@onready var menu_button: Button = %Menu
 @onready var hand_scroll: ScrollContainer = $Table/HandPanel/Column/Scroll
 @onready var hand_fan = $Table/HandPanel/Column/Scroll/Cards
 @onready var hand_title: Label = $Table/HandPanel/Column/Title
@@ -51,9 +54,10 @@ var _presenting_result: bool = false
 var _display_match_id: int = -1
 var _round_key: String = ""
 var _last_phase: String = ""
+var _phase_duration: float = 15.0
 var _rendered_hand: Array = []
 var _selected_card: Button
-var _incoming_id := -1
+var _incoming_id: int = -1
 var _initial_spin: bool = false
 var _animation: Tween
 var _announcement_animation: Tween
@@ -65,20 +69,18 @@ func _ready() -> void:
 	count_picker.item_selected.connect(_on_player_count_selected)
 	for lives in range(1, Rules.MAX_INITIAL_LIVES + 1):
 		lives_picker.add_item("生命 %d" % lives, lives)
-	lives_picker.item_selected.connect(func(index: int):
+	lives_picker.item_selected.connect(func(index: int) -> void:
 		initial_lives_changed.emit(lives_picker.get_item_id(index)))
-	restart_button.pressed.connect(func(): restart_requested.emit())
-	menu_button.pressed.connect(func(): menu_requested.emit())
+	restart_button.pressed.connect(func() -> void: restart_requested.emit())
+	menu_button.pressed.connect(func() -> void: menu_requested.emit())
 	primary_button.pressed.connect(_on_primary)
 	$Table/Toolbar/Statistics.pressed.connect(_toggle_statistics)
-	shop.view_changed.connect(_move_to_shop)
+	shop.view_changed.connect(_on_shop_view_changed)
 	action_menu.direction_selected.connect(_play_selected)
 	action_menu.special_confirmed.connect(_use_selected_special)
 	action_menu.cancelled.connect(_close_card_menu)
 	action_overlay.gui_input.connect(_on_overlay_input)
-	resized.connect(func():
-		_close_card_menu()
-		_move_to_shop(shop.progress))
+	resized.connect(_close_card_menu)
 	primary_button.disabled = true
 	_clear_children(hand_fan)
 
@@ -88,11 +90,19 @@ func present() -> void:
 	var phase: String = game.phase
 	if phase != "round_intro" and round_announcement.visible:
 		_hide_round_announcement()
+
+	if phase != _last_phase:
+		if phase == "choosing":
+			_phase_duration = maxf(1.0, game.phase_time_left())
+		elif phase == "settlement":
+			_phase_duration = maxf(1.0, game.phase_time_left())
+
 	var new_deal := phase == "choosing" and _round_key != round_key
 	if phase == "round_intro" and (_last_phase != phase or _display_match_id != game.match_id):
 		_stop_animation()
 		wheel.clear_placements()
 		wheel.table_cards = {}
+		wheel.hit_defended = false
 		_close_card_menu()
 		_round_state = game.public
 		_update_wheel_seats({})
@@ -117,7 +127,6 @@ func present() -> void:
 		wheel.clear_placements()
 		wheel.table_cards = {}
 		wheel.seats = []
-		wheel.figure_seats = []
 		wheel.queue_redraw()
 		_render_statistics()
 	elif phase == "settlement" and _round_key != round_key:
@@ -127,8 +136,9 @@ func present() -> void:
 		wheel.start_index = int(_round_state.get("initial_index", 0))
 		wheel.needle_angle = wheel.seat_angle(wheel.start_index)
 		wheel.target_index = -1
-		wheel.center_caption = "初始"
-		wheel.center_steps = str(wheel.start_index + 1)
+		wheel.hit_defended = false
+		wheel.center_caption = "初始席位"
+		wheel.center_steps = "%02d" % (wheel.start_index + 1)
 		wheel.showing_actions = false
 		_render_statistics()
 	elif phase in ["result", "ended"] and phase != _last_phase:
@@ -136,23 +146,31 @@ func present() -> void:
 			_round_key = round_key
 			_round_state = game.public.duplicate(true)
 			_round_state["initial_index"] = game.last_result.get("initial_index", 0)
-			_round_state["alive"] = game.last_result.get("actions", []).map(func(action): return action.peer_id)
+			var action_peers: Array = []
+			for a_var in game.last_result.get("actions", []):
+				var a: Dictionary = a_var
+				action_peers.append(a["peer_id"])
+			_round_state["alive"] = action_peers
 		_show_wheel(game.last_result)
 	elif game.public.get("hidden_card_counts", {}) != _wheel_hidden_counts or game.public.get("balances", {}) != _wheel_balances:
 		_update_wheel_seats(game.last_result if phase in ["result", "ended"] else {})
+
 	if phase in ["choosing", "settlement"]:
 		_render_pending_table()
 	elif phase == "aborted":
 		_stop_animation()
 		wheel.clear_placements()
 		wheel.table_cards = {}
+
 	_last_phase = phase
 	if not _presenting_result:
 		_render_hand()
 	if new_deal:
-		var hand: Array = game.public.hands.get(game.local_id(), [])
+		var hands_dict: Dictionary = game.public.get("hands", {})
+		var hand: Array = hands_dict.get(game.local_id(), [])
 		if not hand.is_empty():
-			var slot: HandCard = hand_fan.get_node_or_null("HandCard_%d" % hand.back().id)
+			var last_card: Dictionary = hand.back()
+			var slot: HandCard = hand_fan.get_node_or_null("HandCard_%d" % int(last_card["id"]))
 			if slot != null:
 				_deal_to_hand(slot)
 	if not _presenting_result:
@@ -178,7 +196,7 @@ func _sync_wallet(is_round_result: bool) -> void:
 		else:
 			coins.set_amount(maxi(0, _wallet_balance - _pending_gain), false)
 	if _wallet_cards != game.special_cards:
-		var order := {}
+		var order: Dictionary = {}
 		for kind in HandCard.SPECIAL_NAMES:
 			var gained: int = int(game.special_cards.get(kind, 0)) - int(_wallet_cards.get(kind, 0))
 			if gained > 0:
@@ -190,7 +208,7 @@ func _sync_wallet(is_round_result: bool) -> void:
 func _present_reward() -> void:
 	if not _payouts.is_empty() and not _presenting_result and not reward.visible:
 		var payout: Dictionary = _payouts.pop_front()
-		reward.play(payout.gain, payout.result, coins)
+		reward.play(int(payout["gain"]), payout["result"], coins)
 
 func _on_reward_delivered(gain: int) -> void:
 	_pending_gain -= gain
@@ -205,6 +223,8 @@ func reset() -> void:
 	wheel.clear_placements()
 	wheel.table_cards = {}
 	wheel.countdown_seconds = -1
+	wheel.countdown_ratio = 0.0
+	wheel.hit_defended = false
 	_round_key = ""
 	_display_match_id = -1
 	_last_phase = ""
@@ -212,6 +232,8 @@ func reset() -> void:
 	_wheel_hidden_counts.clear()
 	_wheel_balances.clear()
 	round_label.set_number(0)
+	round_label.countdown_seconds = -1
+	round_label.countdown_ratio = 0.0
 	_stop_animation()
 	_close_card_menu()
 	stats_panel.hide()
@@ -219,27 +241,26 @@ func reset() -> void:
 
 func _show_round_announcement(number: int, duration: float) -> void:
 	_hide_round_announcement()
-	round_label.hide()
-	round_announcement.text = "turn %d" % number
+	round_announcement.text = "TURN %d" % number
 	round_announcement.modulate.a = 0.0
 	round_announcement.pivot_offset = round_announcement.size * 0.5
-	round_announcement.scale = Vector2.ONE * 0.94
+	round_announcement.scale = Vector2.ONE * 1.12
+	round_announcement.rotation = deg_to_rad(-2.4)
 	round_announcement.show()
 
 	_announcement_animation = create_tween()
-	_announcement_animation.tween_property(round_announcement, "modulate:a", 1.0, duration * 0.18)
-	_announcement_animation.parallel().tween_property(round_announcement, "scale", Vector2.ONE, duration * 0.30).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_announcement_animation.tween_interval(duration * 0.42)
-	_announcement_animation.tween_property(round_announcement, "modulate:a", 0.0, duration * 0.28)
-	_announcement_animation.finished.connect(func():
+	_announcement_animation.tween_property(round_announcement, "modulate:a", 1.0, duration * 0.16)
+	_announcement_animation.parallel().tween_property(round_announcement, "scale", Vector2.ONE, duration * 0.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_announcement_animation.tween_interval(duration * 0.44)
+	_announcement_animation.tween_property(round_announcement, "modulate:a", 0.0, duration * 0.24)
+	_announcement_animation.finished.connect(func() -> void:
 		_announcement_animation = null
 		_hide_round_announcement())
 
 func _hide_round_announcement() -> void:
-	if _announcement_animation and _announcement_animation.is_valid():
+	if _announcement_animation != null and _announcement_animation.is_valid():
 		_announcement_animation.kill()
 	round_announcement.hide()
-	round_label.show()
 
 func _show_wheel(result: Dictionary) -> void:
 	_stop_animation()
@@ -247,11 +268,12 @@ func _show_wheel(result: Dictionary) -> void:
 	_update_wheel_seats(result)
 	wheel.start_index = int(_round_state.get("initial_index", 0))
 	wheel.target_index = -1
+	wheel.hit_defended = bool(result.get("defended", false))
 	var delta: int = int(result.get("delta", 0))
-	wheel.center_caption = "初始" if result.is_empty() else "位移"
+	wheel.center_caption = "初始席位" if result.is_empty() else "准备翻牌"
 	wheel.center_steps = "—"
 
-	var step := TAU / float(maxi(1, wheel.seats.size()))
+	var step: float = TAU / float(maxi(1, wheel.seats.size()))
 	var target: float = wheel.seat_angle(wheel.start_index)
 	wheel.showing_actions = not result.is_empty()
 	if wheel.showing_actions:
@@ -260,52 +282,47 @@ func _show_wheel(result: Dictionary) -> void:
 		wheel.clear_placements()
 		wheel.table_cards = {}
 	shop.close()
+
+	# 固定正俯视角：移除一切升镜/降镜切换，保留流畅转盘、停盘悬念与发牌节奏
 	_animation = create_tween()
 	if result.is_empty():
 		_initial_spin = true
 		wheel.needle_angle = target - TAU
 		wheel.deal_progress = 0.0
-		_tween_table_height(0.0, 1.0, 0.26)
-		_animation.tween_property(wheel, "needle_angle", target, 0.70).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		_animation.tween_callback(func():
-			wheel.center_steps = str(wheel.start_index + 1)
+		_animation.tween_property(wheel, "needle_angle", target, 0.72).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_animation.tween_callback(func() -> void:
+			wheel.center_steps = "%02d" % (wheel.start_index + 1)
 			wheel.queue_redraw())
 		_animation.tween_interval(presentation_timing.wheel_stop_hold)
-		_tween_table_height(1.0, 0.0, presentation_timing.INITIAL_CAMERA_RETURN_SECONDS)
 		_animation.tween_property(wheel, "deal_progress", 1.0, DEAL_SECONDS)
 	else:
-		var landing: int = result["target_index"]
+		var landing: int = int(result["target_index"])
 		wheel.needle_angle = target
 		wheel.play_progress = 0.0
-		_tween_table_height(0.0, 1.0, presentation_timing.RESULT_CAMERA_LIFT_SECONDS)
+		_animation.tween_interval(presentation_timing.RESULT_CAMERA_LIFT_SECONDS)
 		_animation.tween_property(wheel, "play_progress", 1.0, presentation_timing.RESULT_REVEAL_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		_animation.tween_callback(_update_status)
-		_animation.tween_method(func(value: float):
+		_animation.tween_callback(func() -> void:
+			wheel.center_caption = "转动中"
+			wheel.queue_redraw()
+			_update_status())
+		_animation.tween_method(func(value: float) -> void:
 			wheel.needle_angle = target + value * step,
 			0.0, float(delta), presentation_timing.RESULT_ROTATION_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		_animation.tween_callback(func():
+		_animation.tween_callback(func() -> void:
 			wheel.center_caption = "停盘"
 			wheel.queue_redraw()
 			_update_status())
 		_animation.tween_interval(presentation_timing.wheel_stop_hold)
-		_animation.tween_callback(func():
+		_animation.tween_callback(func() -> void:
 			wheel.target_index = landing
 			wheel.center_caption = "最终位移"
 			wheel.center_steps = ("−" if delta < 0 else "+") + str(absi(delta))
 			wheel.queue_redraw()
 			_update_status())
-		_animation.tween_method(func(t: float):
-			wheel.number_scale = 1.0 + 0.22 * sin(PI * t)
+		_animation.tween_method(func(t: float) -> void:
+			wheel.number_scale = 1.0 + 0.24 * sin(PI * t)
 			wheel.queue_redraw(), 0.0, 1.0, presentation_timing.RESULT_NUMBER_PULSE_SECONDS)
-		_tween_table_height(1.0, 0.0, presentation_timing.RESULT_CAMERA_RETURN_SECONDS)
-		var eliminated: int = result.get("eliminated", 0)
-		if eliminated != 0:
-			_animation.tween_callback(func():
-				wheel.tombstone_player_id = eliminated
-				wheel.tombstone_fall = 0.0
-				wheel.tombstone_impact = 0.0)
-			_animation.tween_property(wheel, "tombstone_fall", 1.0, presentation_timing.TOMBSTONE_FALL_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-			_animation.tween_property(wheel, "tombstone_impact", 1.0, presentation_timing.TOMBSTONE_IMPACT_SECONDS)
+		_animation.tween_interval(presentation_timing.RESULT_CAMERA_RETURN_SECONDS)
 	_animation.finished.connect(_on_wheel_animation_finished.bind(result))
 
 func _on_wheel_animation_finished(result: Dictionary) -> void:
@@ -313,99 +330,98 @@ func _on_wheel_animation_finished(result: Dictionary) -> void:
 	_presenting_result = false
 	if not result.is_empty():
 		_update_wheel_seats(result)
-		wheel.tombstone_player_id = 0
 		_render_statistics()
 		_render_hand()
 		_sync_wallet(true)
 	_refresh_controls()
 
-func _tween_table_height(from: float, to: float, duration: float) -> void:
-	_animation.tween_method(_set_table_height, from, to, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-
-func _set_table_height(amount: float) -> void:
-	wheel.view_height = amount
-	hand_panel.modulate.a = 1.0 - smoothstep(0.0, 0.76, amount)
-	stats_panel.modulate.a = hand_panel.modulate.a
-
-func _move_to_shop(amount: float) -> void:
+func _on_shop_view_changed(amount: float) -> void:
 	if amount > 0.0:
 		stats_panel.hide()
-	table.pivot_offset = Vector2(106.0, size.y - 124.0)
-	table.scale = Vector2.ONE * lerpf(1.0, 1.36, amount)
-	table.position = Vector2(size.x * 0.24, -size.y * 0.25) * amount
-	table.modulate.a = 1.0 - smoothstep(0.04, 0.85, amount)
-	table.visible = amount < 0.985
+		_close_card_menu()
 
 func _update_wheel_seats(result: Dictionary) -> void:
 	var seats: Array = []
-	var played_cards := {}
-	var spent_specials := {}
-	for action in result.get("actions", []):
-		var id: int = action["peer_id"]
-		match action["type"]:
+	var played_cards: Dictionary = {}
+	var spent_specials: Dictionary = {}
+	for action_var in result.get("actions", []):
+		var action: Dictionary = action_var
+		var id: int = int(action["peer_id"])
+		match str(action["type"]):
 			"play":
-				played_cards[id] = action["card_id"]
+				played_cards[id] = int(action["card_id"])
 			"defense", "change":
 				spent_specials[id] = 1
-	for id in result.get("super_users", []):
+	for id_var in result.get("super_users", []):
+		var id: int = int(id_var)
 		spent_specials[id] = int(spent_specials.get(id, 0)) + 1
 
 	var visible_state: Dictionary = _round_state if _presenting_result else game.public
 	var counts: Dictionary = visible_state.get("hidden_card_counts", {})
 	var round_counts: Dictionary = _round_state.get("hidden_card_counts", {})
-	var seats_by_id := {}
-	for id in _round_state.get("alive", []):
+	var hands_map: Dictionary = _round_state.get("hands", {})
+	var balances_map: Dictionary = visible_state.get("balances", {})
+	var lives_map: Dictionary = visible_state.get("lives", {})
+
+	for id_var in _round_state.get("alive", []):
+		var id: int = int(id_var)
 		var cards: Array = []
-		for card in _round_state["hands"].get(id, []):
-			cards.append({"id": card["id"], "value": card["value"], "face_up": true,
-				"played": card["id"] == played_cards.get(id, -1)})
-		var spent: int = spent_specials.get(id, 0)
+		var raw_hand: Array = hands_map.get(id, [])
+		for card_var in raw_hand:
+			var card: Dictionary = card_var
+			cards.append({
+				"id": int(card["id"]),
+				"value": int(card["value"]),
+				"face_up": true,
+				"played": int(card["id"]) == int(played_cards.get(id, -1))
+			})
+		var spent: int = int(spent_specials.get(id, 0))
 		var quantity: int = int(counts.get(id, maxi(0, int(round_counts.get(id, 0)) - spent)))
 		if quantity > 0:
 			cards.append({"face_up": false, "quantity": quantity})
-		var hand: Array = _round_state["hands"].get(id, [])
-		var seat := {"id": id, "name": game.name_for(id), "cards": cards,
-			"dealt_id": hand.back().id if not hand.is_empty() else -1}
+		var dealt_id: int = int((raw_hand.back() as Dictionary)["id"]) if not raw_hand.is_empty() else -1
+		var seat: Dictionary = {
+			"id": id,
+			"name": game.name_for(id),
+			"cards": cards,
+			"dealt_id": dealt_id
+		}
 		if id != game.local_id() and visible_state.has("balances"):
-			seat["balance"] = visible_state.balances.get(id, 0)
+			seat["balance"] = int(balances_map.get(id, 0))
 		if game.game_mode == Rules.Mode.CLASSIC:
-			seat["hp"] = visible_state.get("lives", {}).get(id, 0)
+			var hp: int = int(lives_map.get(id, 0))
+			seat["hp"] = hp
+			seat["alive"] = hp > 0
+		else:
+			seat["alive"] = true
 		seats.append(seat)
-		seats_by_id[id] = seat
-	var figure_seats: Array = []
-	if game.game_mode == Rules.Mode.CLASSIC:
-		# Original room order keeps the silhouettes and tombstones in the same positions.
-		var alive: Array = visible_state.get("alive", [])
-		for member in game.members:
-			var id: int = member.id
-			if not alive.has(id):
-				figure_seats.append({"id": id, "name": member.name, "eliminated": true})
-			elif seats_by_id.has(id):
-				figure_seats.append(seats_by_id[id])
-	_wheel_balances = visible_state.get("balances", {}).duplicate()
+
+	_wheel_balances = balances_map.duplicate()
 	_wheel_hidden_counts = counts.duplicate()
 	wheel.seats = seats
-	wheel.figure_seats = figure_seats
 	wheel.local_player_id = game.local_id()
-	wheel.front_index = maxi(0, seats.find_custom(func(seat): return seat.id == game.local_id()))
+	wheel.front_index = maxi(0, seats.find_custom(func(s: Dictionary) -> bool: return int(s["id"]) == game.local_id()))
 	wheel.queue_redraw()
 
 func _render_pending_table() -> void:
-	var cards := {}
+	var cards: Dictionary = {}
 	var own: int = game.local_id()
-	# 宣布锁定时只知道玩家身份。空过和出牌使用同样的牌背。
-	for id in game.committed_ids:
+	for id_var in game.committed_ids:
+		var id: int = int(id_var)
 		if id != own:
 			_set_table_card(cards, id, 0, {"face_up": false})
-	for id in game.settlement_ids:
+	for id_var in game.settlement_ids:
+		var id: int = int(id_var)
 		if id != own:
 			_set_table_card(cards, id, 1, {"face_up": false})
 	var action: Dictionary = game.table_action()
-	if action.get("type") == "play":
+	if str(action.get("type", "")) == "play":
 		action = action.duplicate()
-		for card in game.public.get("hands", {}).get(own, []):
-			if card.id == action.card_id:
-				action["value"] = card.value
+		var hands_dict: Dictionary = game.public.get("hands", {})
+		for card_var in hands_dict.get(own, []):
+			var card: Dictionary = card_var
+			if int(card["id"]) == int(action["card_id"]):
+				action["value"] = int(card["value"])
 				break
 	var face := _table_face(action)
 	if not face.is_empty():
@@ -415,21 +431,25 @@ func _render_pending_table() -> void:
 	wheel.table_cards = cards
 
 func _render_revealed_table(result: Dictionary) -> void:
-	var cards := {}
+	var cards: Dictionary = {}
 	var own: int = game.local_id()
-	for action in result.get("actions", []):
+	for action_var in result.get("actions", []):
+		var action: Dictionary = action_var
 		var face := _table_face(action)
 		if not face.is_empty():
-			face["flip"] = action.peer_id != own
-			_set_table_card(cards, action.peer_id, 0, face)
-	for id in result.get("super_users", []):
+			var pid: int = int(action["peer_id"])
+			face["flip"] = pid != own
+			_set_table_card(cards, pid, 0, face)
+	for id_var in result.get("super_users", []):
+		var id: int = int(id_var)
 		var face := _table_face({"type": "super"})
 		face["flip"] = id != own
 		_set_table_card(cards, id, 1, face)
-	for id in wheel.table_cards:
-		for slot in wheel.table_cards[id]:
-			if not cards.get(id, {}).has(slot):
-				_set_table_card(cards, id, slot, {"face_up": false, "discard": true})
+	for id_key in wheel.table_cards:
+		var slot_map: Dictionary = wheel.table_cards[id_key]
+		for slot_key in slot_map:
+			if not (cards.get(id_key, {}) as Dictionary).has(slot_key):
+				_set_table_card(cards, int(id_key), int(slot_key), {"face_up": false, "discard": true})
 	wheel.table_cards = cards
 
 func _set_table_card(cards: Dictionary, id: int, slot: int, face: Dictionary) -> void:
@@ -438,21 +458,21 @@ func _set_table_card(cards: Dictionary, id: int, slot: int, face: Dictionary) ->
 	cards[id][slot] = face
 
 func _table_face(action: Dictionary) -> Dictionary:
-	var kind: String = action.get("type", "")
-	var face := {"face_up": true, "played": true}
+	var kind: String = str(action.get("type", ""))
+	var face: Dictionary = {"face_up": true, "played": true}
 	match kind:
 		"play":
 			if not action.has("value"):
 				return {}
-			face["caption"] = "%+d" % (int(action.value) * int(action.sign))
+			face["caption"] = "%+d" % (int(action["value"]) * int(action["sign"]))
 		"change":
 			face["caption"] = "变化"
-			face["points"] = "%+d" % (int(action.value) * int(action.sign))
+			face["points"] = "%+d" % (int(action["value"]) * int(action["sign"]))
 		"defense":
 			face["caption"] = "防御"
 		"super":
 			face["caption"] = "超级"
-			face["points"] = "%+d" % game.super_steps
+			face["points"] = "%+d" % int(game.super_steps)
 		_:
 			return {}
 	return face
@@ -464,7 +484,6 @@ func _deal_to_hand(slot: HandCard) -> void:
 	flight.finished.connect(_finish_hand_deal)
 
 func _position_incoming_card(progress: float) -> void:
-	# 商店更新可能重建扇形手牌，发牌始终对准当前牌位。
 	var slot: HandCard = hand_fan.get_node_or_null("HandCard_%d" % _incoming_id)
 	if slot == null or progress <= 0.0:
 		return
@@ -491,11 +510,9 @@ func _stop_animation() -> void:
 	_finish_hand_deal()
 	_initial_spin = false
 	_presenting_result = false
-	wheel.tombstone_player_id = 0
 	wheel.play_progress = 1.0
 	wheel.number_scale = 1.0
 	wheel.deal_progress = 1.0
-	_set_table_height(0.0)
 
 func _render_hand() -> void:
 	var cards: Array = []
@@ -504,23 +521,28 @@ func _render_hand() -> void:
 		if amount > 0:
 			cards.append({"kind": kind, "quantity": amount})
 	var action: Dictionary = game.table_action()
-	var out_id: int = action.get("card_id", -1) if action.get("type") == "play" else -1
-	for card in game.public.get("hands", {}).get(game.local_id(), []):
-		if card.id != out_id:
+	var out_id: int = int(action.get("card_id", -1)) if str(action.get("type", "")) == "play" else -1
+	var hands_dict: Dictionary = game.public.get("hands", {})
+	for card_var in hands_dict.get(game.local_id(), []):
+		var card: Dictionary = card_var
+		if int(card["id"]) != out_id:
 			cards.append(card)
+
 	var total: int = 0
-	for card in cards:
+	for card_var in cards:
+		var card: Dictionary = card_var
 		total += int(card.get("quantity", 1))
-	hand_title.text = "我的手牌  %02d" % total
+	hand_title.text = "HAND // 我的手牌  %02d" % total
 	if cards == _rendered_hand:
 		return
 
 	_close_card_menu()
 	_rendered_hand = cards
 	_clear_children(hand_fan)
-	for card in cards:
+	for card_var in cards:
+		var card: Dictionary = card_var
 		var button = HandCardScene.instantiate()
-		button.kind = card.get("kind", "play")
+		button.kind = str(card.get("kind", "play"))
 		if button.kind == "play":
 			button.card_id = int(card["id"])
 			button.value = int(card["value"])
@@ -535,16 +557,19 @@ func _render_hand() -> void:
 
 func _refresh_controls() -> void:
 	_update_status()
+	mode_badge.text = "♦ GREED" if game.game_mode == Rules.Mode.GREED else "♦ CLASSIC"
 	var can_act: bool = game.can_act() and not _initial_spin
 	var can_use_super: bool = game.can_settle() and game.special_card_count("super") > 0
-	for button in hand_fan.get_children():
-		button.disabled = not (can_use_super if button.kind == "super" else can_act)
+	for child in hand_fan.get_children():
+		if child is Button:
+			var btn: Button = child
+			btn.disabled = not (can_use_super if btn.get("kind") == "super" else can_act)
 	if is_instance_valid(_selected_card) and _selected_card.disabled:
 		_close_card_menu()
 
 	shop.game = game
-	$Table/CoinWindow.visible = not game.card_prices.is_empty()
-	shop.present(_initial_spin or _presenting_result or wheel.view_height > 0.0)
+	wallet_frame.visible = not game.card_prices.is_empty()
+	shop.present(_initial_spin or _presenting_result)
 
 	var is_local: bool = game.role == "local"
 	count_picker.visible = is_local
@@ -553,72 +578,135 @@ func _refresh_controls() -> void:
 		primary_button.text = "结算中"
 		primary_button.disabled = true
 		return
+
 	var ranking: Array = game.public.get("ranking", [])
-	ranking_label.visible = not ranking.is_empty()
-	if ranking_label.visible:
-		var lines := PackedStringArray(["最终排名" if game.phase == "ended" else "已达标"])
-		for index in ranking.size():
-			var id: int = ranking[index]
-			var entry := "第 %d 名   %s" % [index + 1, "你" if id == game.local_id() else game.name_for(id)]
-			if id != game.local_id() and game.public.get("balances", {}).has(id):
-				entry += "   %dr" % game.public.balances[id]
+	ranking_panel.visible = not ranking.is_empty()
+	if ranking_panel.visible:
+		var lines := PackedStringArray(["♦ 最终排名" if game.phase == "ended" else "♦ 已达标退席"])
+		var balances: Dictionary = game.public.get("balances", {})
+		for index in range(ranking.size()):
+			var id: int = int(ranking[index])
+			var entry := "第 %d 名  %s" % [index + 1, "你" if id == game.local_id() else game.name_for(id)]
+			if id != game.local_id() and balances.has(id):
+				entry += "  %dr" % int(balances[id])
 			lines.append(entry)
 		ranking_label.text = "\n".join(lines)
+
 	if is_local:
 		count_picker.select(count_picker.get_item_index(game.members.size()))
 		lives_picker.select(lives_picker.get_item_index(game.initial_lives))
 	restart_button.visible = is_local
 	menu_button.visible = is_local and allow_menu
 	primary_button.disabled = true
+	primary_button.theme_type_variation = &"InkButton"
 	match game.phase:
 		"round_intro":
 			primary_button.text = "准备发牌"
 		"choosing":
-			var in_round: bool = game.public.get("alive", []).has(game.local_id())
-			primary_button.text = "不出牌" if in_round else "观战"
+			var alive_list: Array = game.public.get("alive", [])
+			var in_round: bool = alive_list.has(game.local_id())
+			primary_button.text = "不出牌  /  PASS" if in_round else "观战中"
 			if in_round and game._locked:
-				primary_button.text = "已锁定"
+				primary_button.text = "✓  已锁定"
 			elif in_round and game._submitting:
-				primary_button.text = "提交中"
+				primary_button.text = "提交中…"
 			primary_button.disabled = not can_act
 		"settlement":
 			primary_button.text = "跳过超级卡" if can_use_super else "确认结算"
+			primary_button.theme_type_variation = &"CrimsonButton" if game.can_settle() else &"InkButton"
 			if game.settlement_submitted:
-				primary_button.text = "等待结算"
-			elif not game.public.get("alive", []).has(game.local_id()):
-				primary_button.text = "观战"
+				primary_button.text = "等待结算…"
+			elif not (game.public.get("alive", []) as Array).has(game.local_id()):
+				primary_button.text = "观战中"
 			primary_button.disabled = not game.can_settle()
 		"result":
 			primary_button.text = "等待下一轮"
 		"ended", "aborted":
 			primary_button.text = "对局结束"
+			primary_button.theme_type_variation = &"CrimsonButton"
 			if is_local:
-				primary_button.text = "再来一局"
+				primary_button.text = "♦  再来一局"
 			elif game.am_host():
-				primary_button.text = "返回房间"
+				primary_button.text = "♦  返回房间"
 			primary_button.disabled = not (is_local or game.am_host())
 
 func _update_status() -> void:
 	var timed_phase: bool = game.phase in ["choosing", "settlement"]
-	wheel.countdown_seconds = game.seconds_left() if timed_phase and not _initial_spin else -1
-	var status: String = game.status.replace("金币", "筹码")
+	var show_clock: bool = timed_phase and not _initial_spin
+	var secs: int = game.seconds_left() if show_clock else -1
+	var ratio: float = clampf(game.phase_time_left() / maxf(1.0, _phase_duration), 0.0, 1.0) if show_clock else 0.0
+
+	wheel.countdown_seconds = secs
+	wheel.countdown_ratio = ratio
+	round_label.countdown_seconds = secs
+	round_label.countdown_ratio = ratio
+
+	var alive_count: int = (game.public.get("alive", []) as Array).size()
+	var caption := ""
+	var locked_str := ""
+	var urgent := false
+
+	if _presenting_result:
+		urgent = true
+		match wheel.center_caption:
+			"停盘":
+				caption = "停盘待定"
+			"最终位移":
+				caption = "结算落地"
+			_:
+				caption = "公开出牌" if wheel.play_progress < 1.0 else "轮盘转动"
+	else:
+		match game.phase:
+			"round_intro":
+				caption = "新回合发牌"
+			"choosing":
+				caption = "定初始指向" if _initial_spin else "出牌决策"
+				if not _initial_spin and alive_count > 0:
+					locked_str = "已锁 %d / %d" % [int(game.commit_count), alive_count]
+			"settlement":
+				caption = "超级卡窗口"
+				urgent = true
+				if alive_count > 0:
+					locked_str = "已确认 %d / %d" % [(game.settlement_ids as Array).size(), alive_count]
+			"result":
+				caption = "单轮结算"
+			"ended":
+				caption = "会议终局"
+				urgent = true
+			"aborted":
+				caption = "会议中止"
+				urgent = true
+			_:
+				caption = "等待中"
+
+	round_label.phase_caption = caption
+	round_label.locked_text = locked_str
+	round_label.phase_urgent = urgent
+
+	var status_str: String = str(game.status).replace("金币", "筹码")
 	if _presenting_result:
 		match wheel.center_caption:
 			"停盘":
-				status = "停盘"
+				status_str = "指针已停稳，正在核对结果…"
 			"最终位移":
-				status = "结算中"
+				status_str = "本轮结算完成"
 			_:
-				status = "公开出牌" if wheel.play_progress < 1.0 else "轮盘转动中"
+				status_str = "全员翻牌公开中…" if wheel.play_progress < 1.0 else "轮盘转动中…"
 	elif timed_phase:
-		status = ""
+		if _initial_spin:
+			status_str = "正在确定本轮初始指向…"
+		elif game.phase == "choosing":
+			status_str = "点击下方手牌选择加减，或点击右侧「不出牌」" if game.can_act() else status_str
+		elif game.phase == "settlement":
+			status_str = "如有超级卡可现在打出，否则确认结算" if game.can_settle() else "等待其他代表确认结算…"
 	elif game.phase == "ended":
 		var winner: int = int(game.last_result.get("winner", 0))
-		status = "%s获胜" % ("你" if winner == game.local_id() else game.name_for(winner) + " ")
-	if status_label.text == status:
-		return
-	status_label.text = status
-	status_label.add_theme_color_override("font_color", Sketch.ACCENT if _presenting_result or game.phase in ["settlement", "result", "aborted"] else Sketch.MUTED)
+		status_str = "♦ %s获得最终胜利！" % ("你" if winner == game.local_id() else game.name_for(winner) + " ")
+
+	if status_label.text != status_str:
+		status_label.text = status_str
+		status_label.add_theme_color_override("font_color",
+			Ink.CRIMSON if (_presenting_result or game.phase in ["settlement", "result", "ended", "aborted"]) else Ink.INK_SOFT)
 
 func _process(_delta: float) -> void:
 	if visible and game != null and game.phase in ["choosing", "settlement"]:
@@ -629,22 +717,24 @@ func _open_card_menu(button: Button) -> void:
 		return
 	_selected_card = button
 	hand_fan.pin(button)
-	match button.kind:
+	var kind: String = str(button.get("kind"))
+	match kind:
 		"change":
-			action_menu.set_change_range(game.public.get("alive", []).size())
+			action_menu.set_change_range((game.public.get("alive", []) as Array).size())
 		"defense":
-			action_menu.set_special_card(HandCard.SPECIAL_NAMES["defense"], "被命中时保住本轮筹码。" if game.game_mode == Rules.Mode.GREED else "被命中时保住最后 1 点生命。")
+			action_menu.set_special_card(HandCard.SPECIAL_NAMES["defense"],
+				"被命中时保住本轮筹码。" if game.game_mode == Rules.Mode.GREED else "被命中时保住最后 1 点生命。")
 		"super":
-			action_menu.set_special_card(HandCard.SPECIAL_NAMES["super"], "最终位移增加 %d 格。" % game.super_steps)
+			action_menu.set_special_card(HandCard.SPECIAL_NAMES["super"], "最终位移额外增加 %d 格。" % int(game.super_steps))
 		_:
-			action_menu.set_card_value(button.value)
+			action_menu.set_card_value(int(button.get("value")))
 
-	var top: Vector2 = button.get_global_transform() * Vector2(button.size.x * 0.5, 0)
+	var top: Vector2 = button.get_global_transform() * Vector2(button.size.x * 0.5, 0.0)
 	action_overlay.show()
 	action_menu.reset_size()
-	var room: Vector2 = size - action_menu.size - Vector2(16, 16)
-	var point := top - global_position - Vector2(action_menu.size.x * 0.5, action_menu.size.y + 14.0)
-	action_menu.position = point.clamp(Vector2(16, 104), room.max(Vector2(16, 104)))
+	var room: Vector2 = size - action_menu.size - Vector2(18.0, 18.0)
+	var point := top - global_position - Vector2(action_menu.size.x * 0.5, action_menu.size.y + 16.0)
+	action_menu.position = point.clamp(Vector2(18.0, 96.0), room.max(Vector2(18.0, 96.0)))
 
 func _close_card_menu() -> void:
 	if is_instance_valid(_selected_card):
@@ -661,9 +751,10 @@ func _play_selected(direction: int, points: int) -> void:
 	if not is_instance_valid(_selected_card) or _selected_card.disabled:
 		return
 	var action: Dictionary
-	match _selected_card.kind:
+	var kind: String = str(_selected_card.get("kind"))
+	match kind:
 		"play":
-			action = {"type": "play", "card_id": _selected_card.card_id, "sign": direction}
+			action = {"type": "play", "card_id": int(_selected_card.get("card_id")), "sign": direction}
 		"change":
 			action = {"type": "change", "value": points, "sign": direction}
 		_:
@@ -675,7 +766,7 @@ func _play_selected(direction: int, points: int) -> void:
 func _use_selected_special() -> void:
 	if not is_instance_valid(_selected_card) or _selected_card.disabled:
 		return
-	var kind: String = _selected_card.kind
+	var kind: String = str(_selected_card.get("kind"))
 	_place_selected_on_table(1 if kind == "super" else 0)
 	_close_card_menu()
 	if kind == "defense":
@@ -728,18 +819,21 @@ func _toggle_statistics() -> void:
 
 func _render_statistics() -> void:
 	var stats: Dictionary = game.public.get("stats", {})
-	stats_totals.text = "已发 %d  /  已出 %d  /  剩余 %d" % [
-		stats.get("issued", 0), stats.get("played", 0), stats.get("held", 0)]
+	stats_totals.text = "已发 %d / 已出 %d / 剩余 %d" % [
+		int(stats.get("issued", 0)), int(stats.get("played", 0)), int(stats.get("held", 0))]
 	_clear_children(stats_grid)
-	for header in ["牌", "已发", "已出", "离场弃" if game.game_mode == Rules.Mode.GREED else "淘汰弃", "剩余"]:
-		_add_stat_cell(header, 10, Sketch.MUTED)
+	var headers: Array[String] = ["牌", "已发", "已出", "离场弃" if game.game_mode == Rules.Mode.GREED else "淘汰弃", "剩余"]
+	for header in headers:
+		_add_stat_cell(header, 11, Ink.INK_SOFT)
 	var by_value: Dictionary = stats.get("by_value", {})
-	var values := by_value.keys()
+	var values: Array = by_value.keys()
 	values.sort()
 	for value in values:
-		_add_stat_cell(str(value), 12, Sketch.INK)
-		for field in ["issued", "played", "discarded", "held"]:
-			_add_stat_cell(str(by_value[value][field]), 12, Sketch.ACCENT if field == "held" else Sketch.INK)
+		_add_stat_cell(str(value), 13, Ink.INK)
+		var fields: Array[String] = ["issued", "played", "discarded", "held"]
+		for field in fields:
+			var row_dict: Dictionary = by_value[value]
+			_add_stat_cell(str(int(row_dict[field])), 13, Ink.CRIMSON if field == "held" else Ink.INK)
 
 func _add_stat_cell(text: String, font_size: int, color: Color) -> void:
 	var label := Label.new()
