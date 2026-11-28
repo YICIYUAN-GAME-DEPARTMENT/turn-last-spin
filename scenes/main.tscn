@@ -6,9 +6,23 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/match_view.tscn" id="4_match"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mode_menu.tscn" id="5_menu"]
 [ext_resource type="Script" uid="uid://cqrc0bp7kkcn1" path="res://scripts/core/economy_settings.gd" id="6_economy"]
+[ext_resource type="Theme" path="res://ui/editorial_theme.tres" id="7_theme"]
+[ext_resource type="Script" path="res://scripts/ui/editorial_paper.gd" id="8_paper"]
+[ext_resource type="Script" path="res://scripts/ui/editorial_box.gd" id="9_box"]
+[ext_resource type="Script" path="res://scripts/ui/editorial_hotline.gd" id="10_hotline"]
 
 [sub_resource type="Resource" id="Resource_economy"]
 script = ExtResource("6_economy")
+
+[sub_resource type="SystemFont" id="EditorialSerif"]
+font_names = PackedStringArray("Georgia", "Bodoni MT", "Times New Roman", "serif")
+font_weight = 700
+subpixel_positioning = 0
+
+[sub_resource type="SystemFont" id="EditorialMono"]
+font_names = PackedStringArray("Courier New", "Cascadia Mono", "Consolas", "monospace")
+font_weight = 700
+subpixel_positioning = 0
 
 [node name="Main" type="Control" unique_id=1262157716]
 layout_mode = 3
@@ -17,6 +31,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("7_theme")
 script = ExtResource("1_ui")
 
 [node name="Net" type="Node" parent="." unique_id=1041160354]
@@ -26,7 +41,7 @@ script = ExtResource("2_net")
 script = ExtResource("3_session")
 economy_settings = SubResource("Resource_economy")
 
-[node name="Background" type="ColorRect" parent="." unique_id=1740488825]
+[node name="Background" type="Control" parent="." unique_id=1740488825]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -34,7 +49,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0784314, 0.133333, 0.203922, 1)
+script = ExtResource("8_paper")
 
 [node name="ModeMenu" parent="." unique_id=1223306581 instance=ExtResource("5_menu")]
 visible = false
@@ -47,162 +62,565 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 18
+theme_override_constants/margin_left = 70
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 70
+theme_override_constants/margin_bottom = 44
 
 [node name="Layout" type="VBoxContainer" parent="Margin" unique_id=1821305221]
 layout_mode = 2
-theme_override_constants/separation = 9
+theme_override_constants/separation = 16
 
-[node name="Headline" type="Label" parent="Margin/Layout" unique_id=725670986]
+[node name="Masthead" type="HBoxContainer" parent="Margin/Layout"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
-text = "TURN · LAST SPIN   /   MINIMAL DEMO"
+theme_override_constants/separation = 14
 
-[node name="Message" type="Label" parent="Margin/Layout" unique_id=1127477202]
+[node name="Headline" type="Label" parent="Margin/Layout/Masthead" unique_id=725670986]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.0862745, 0.0823529, 0.0784314, 1)
+theme_override_fonts/font = SubResource("EditorialSerif")
+theme_override_font_sizes/font_size = 26
+text = "TURN · LAST SPIN"
+
+[node name="StageBadge" type="Label" parent="Margin/Layout/Masthead"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 13
+text = "♦  专服接线台"
+
+[node name="Spacer" type="Control" parent="Margin/Layout/Masthead"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PeerMeta" type="Label" parent="Margin/Layout/Masthead"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 12
+text = "未连接"
+
+[node name="MenuButton" type="Button" parent="Margin/Layout/Masthead" unique_id=224163666]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"GhostButton"
+theme_override_font_sizes/font_size = 14
+text = "←  返回主菜单"
+
+[node name="HeaderRule" type="HSeparator" parent="Margin/Layout"]
+layout_mode = 2
+
+[node name="StatusRibbon" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="StatusPrefix" type="Label" parent="Margin/Layout/StatusRibbon"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 12
+text = "DISPATCH //"
+
+[node name="Message" type="Label" parent="Margin/Layout/StatusRibbon" unique_id=1127477202]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "当前状态"
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.0862745, 0.0823529, 0.0784314, 1)
+theme_override_font_sizes/font_size = 14
+text = "等待连接专服。"
 autowrap_mode = 3
 
-[node name="ConnectionRow" type="HBoxContainer" parent="Margin/Layout" unique_id=1602670424]
+[node name="StageArea" type="Control" parent="Margin/Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ConnectStage" type="CenterContainer" parent="Margin/Layout/StageArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ConnectCard" type="PanelContainer" parent="Margin/Layout/StageArea/ConnectStage"]
+custom_minimum_size = Vector2(540, 0)
+layout_mode = 2
+script = ExtResource("9_box")
+ink_seed = 23
+double_frame = true
+padding_h = 30
+padding_v = 26
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Eyebrow" type="Label" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 11
+text = "HOTLINE TERMINAL  ·  PROTOCOL v4"
+
+[node name="Title" type="Label" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body"]
+layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialSerif")
+theme_override_font_sizes/font_size = 26
+text = "接入圆桌专服"
+
+[node name="HotlineArt" type="Control" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 72)
+layout_mode = 2
+script = ExtResource("10_hotline")
+
+[node name="ConnectionRow" type="HBoxContainer" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body" unique_id=1602670424]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
-[node name="AddressLabel" type="Label" parent="Margin/Layout/ConnectionRow" unique_id=1750315686]
+[node name="AddrCol" type="VBoxContainer" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow"]
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5
+
+[node name="AddressLabel" type="Label" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/AddrCol" unique_id=1750315686]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "专服地址（WSS / 本机 IP）"
+
+[node name="AddressInput" type="LineEdit" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/AddrCol" unique_id=1670139932]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 42)
+layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialMono")
 theme_override_font_sizes/font_size = 15
-text = "专服地址:"
-
-[node name="AddressInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=1670139932]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(170, 0)
-layout_mode = 2
 text = "127.0.0.1"
+placeholder_text = "wss://... 或 127.0.0.1"
 
-[node name="PortLabel" type="Label" parent="Margin/Layout/ConnectionRow" unique_id=1142774841]
+[node name="PortCol" type="VBoxContainer" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-text = "端口:"
+theme_override_constants/separation = 5
 
-[node name="PortInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=1563670917]
+[node name="PortLabel" type="Label" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/PortCol" unique_id=1142774841]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "端口"
+
+[node name="PortInput" type="LineEdit" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/PortCol" unique_id=1563670917]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(74, 0)
+custom_minimum_size = Vector2(96, 42)
 layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 15
 text = "24680"
 
-[node name="RoomCodeInput" type="LineEdit" parent="Margin/Layout/ConnectionRow" unique_id=452314]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(125, 0)
-layout_mode = 2
-placeholder_text = "6 位房间码"
-max_length = 6
-
-[node name="HostButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1300572074]
-layout_mode = 2
-text = "连接专服"
-
-[node name="JoinButton" type="Button" parent="Margin/Layout/ConnectionRow" unique_id=1796960301]
-layout_mode = 2
-text = "加入房间"
-
-[node name="NetworkHint" type="Label" parent="Margin/Layout" unique_id=1057351490]
+[node name="NetworkHint" type="Label" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body" unique_id=1057351490]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
 theme_override_font_sizes/font_size = 12
-text = "公网使用 WSS；本机专服使用 127.0.0.1。连接专服后创建房间，或输入六位房间码加入。"
-
-[node name="LobbyBox" type="VBoxContainer" parent="Margin/Layout" unique_id=632700486]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="Roster" type="Label" parent="Margin/Layout/LobbyBox" unique_id=1223826888]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(240, 0)
-layout_mode = 2
-theme_override_font_sizes/font_size = 17
-text = "房间成员"
+text = "公网对局使用 wss:// 域名或证书地址；本机双开测试使用 127.0.0.1。"
 autowrap_mode = 3
 
-[node name="GameMode" type="OptionButton" parent="Margin/Layout/LobbyBox" unique_id=902211441]
+[node name="HostButton" type="Button" parent="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body" unique_id=1300572074]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"InkButton"
+theme_override_font_sizes/font_size = 17
+text = "♦   连接专服"
+
+[node name="DispatchStage" type="CenterContainer" parent="Margin/Layout/StageArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DispatchWrap" type="VBoxContainer" parent="Margin/Layout/StageArea/DispatchStage"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Cards" type="HBoxContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="CreateCard" type="PanelContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("9_box")
+ink_seed = 31
+double_frame = true
+padding_h = 28
+padding_v = 26
+
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Index" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 12
+text = "01  ♦  HOST A TABLE"
+
+[node name="Title" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard/VBox"]
+layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialSerif")
+theme_override_font_sizes/font_size = 24
+text = "创建新房间"
+
+[node name="Desc" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 13
+text = "担任本桌房主，自动签发 6 位暗码。可设定经典或贪婪议程，最多容纳 12 位代表。"
+autowrap_mode = 3
+
+[node name="CreateRoomButton" type="Button" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"InkButton"
+theme_override_font_sizes/font_size = 16
+text = "♦   签发暗码并建房"
+
+[node name="JoinCard" type="PanelContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("9_box")
+ink_seed = 47
+double_frame = true
+padding_h = 28
+padding_v = 26
+
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Index" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 12
+text = "02  ♦  JOIN BY CODE"
+
+[node name="Title" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox"]
+layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialSerif")
+theme_override_font_sizes/font_size = 24
+text = "凭暗码入席"
+
+[node name="Desc" type="Label" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 13
+text = "输入房主提供的 6 位房间暗码，立即进入圆桌大厅。"
+autowrap_mode = 3
+
+[node name="RoomCodeInput" type="LineEdit" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox" unique_id=452314]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 22
+placeholder_text = "输入 6 位暗码"
+alignment = 1
+max_length = 6
+
+[node name="JoinButton" type="Button" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox" unique_id=1796960301]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CrimsonButton"
+theme_override_font_sizes/font_size = 16
+text = "加入房间"
+
+[node name="DisconnectRow" type="HBoxContainer" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap"]
+layout_mode = 2
+alignment = 1
+
+[node name="DisconnectButton" type="Button" parent="Margin/Layout/StageArea/DispatchStage/DispatchWrap/DisconnectRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 0
+mouse_default_cursor_shape = 2
+theme_type_variation = &"GhostButton"
+theme_override_font_sizes/font_size = 13
+text = "断开专服并更换地址"
 
-[node name="LivesRow" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=1842406676]
+[node name="LobbyBox" type="HBoxContainer" parent="Margin/Layout/StageArea" unique_id=632700486]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 26
+
+[node name="RosterPanel" type="PanelContainer" parent="Margin/Layout/StageArea/LobbyBox"]
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.45
+script = ExtResource("9_box")
+ink_seed = 59
+double_frame = true
+padding_h = 26
+padding_v = 22
+
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="RoomHeader" type="HBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="CodeBlock" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="CodeCaption" type="Label" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader/CodeBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 11
+text = "ROOM CODE // 入会暗码"
+
+[node name="RoomCodeDisplay" type="Label" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader/CodeBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 32
+text = "------"
+
+[node name="CopyCodeButton" type="Button" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 38)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 13
+text = "复制暗码"
+
+[node name="HeaderSpacer" type="Control" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SeatCounter" type="Label" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 14
+text = "0 / 12 席"
+
+[node name="RosterRule" type="HSeparator" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox"]
+layout_mode = 2
+
+[node name="Roster" type="Label" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox" unique_id=1223826888]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "房间成员"
+
+[node name="MemberScroll" type="ScrollContainer" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MemberList" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/MemberScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="LivesLabel" type="Label" parent="Margin/Layout/LobbyBox/LivesRow" unique_id=1692629140]
+[node name="ProtocolPanel" type="PanelContainer" parent="Margin/Layout/StageArea/LobbyBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-text = "初始生命（全员相同）:"
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+script = ExtResource("9_box")
+ink_seed = 73
+padding_h = 24
+padding_v = 22
 
-[node name="LivesSpin" type="SpinBox" parent="Margin/Layout/LobbyBox/LivesRow" unique_id=1019280442]
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Eyebrow" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("EditorialMono")
+theme_override_font_sizes/font_size = 11
+text = "TABLE PROTOCOL // 本桌议程"
+
+[node name="ModeLabel" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "对局模式"
+
+[node name="GameMode" type="OptionButton" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox" unique_id=902211441]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(105, 0)
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="ModeSummary" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "经典模式：被指中扣生命，归零离席，最终存活者胜。"
+autowrap_mode = 3
+
+[node name="LivesRow" type="HBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox" unique_id=1842406676]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LivesLabel" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LivesRow" unique_id=1692629140]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "初始生命（全员相同）"
+
+[node name="LivesSpin" type="SpinBox" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LivesRow" unique_id=1019280442]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(104, 38)
 layout_mode = 2
 min_value = 1.0
 max_value = 5.0
 value = 1.0
 
-[node name="LobbyActions" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=35057057]
-layout_mode = 2
-
-[node name="ReadyButton" type="Button" parent="Margin/Layout/LobbyBox/LobbyActions" unique_id=148112763]
+[node name="AdminDivider" type="HSeparator" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "准备"
 
-[node name="StartButton" type="Button" parent="Margin/Layout/LobbyBox/LobbyActions" unique_id=2093793226]
-unique_name_in_owner = true
-layout_mode = 2
-text = "房主开始"
-
-[node name="MemberAdmin" type="HBoxContainer" parent="Margin/Layout/LobbyBox" unique_id=1834555886]
+[node name="MemberAdmin" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox" unique_id=1834555886]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="MemberChoice" type="OptionButton" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1018649011]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(155, 0)
+[node name="AdminTitle" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "房主席位调度"
 
-[node name="TransferOwner" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1631355658]
+[node name="MemberChoice" type="OptionButton" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin" unique_id=1018649011]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="AdminButtons" type="HBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TransferOwner" type="Button" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin/AdminButtons" unique_id=1631355658]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 13
 text = "转交房主"
 
-[node name="RemoveMember" type="Button" parent="Margin/Layout/LobbyBox/MemberAdmin" unique_id=1120841]
+[node name="RemoveMember" type="Button" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin/AdminButtons" unique_id=1120841]
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 13
 text = "移出成员"
 
-[node name="LeaveRoom" type="Button" parent="Margin/Layout/LobbyBox" unique_id=255512655]
+[node name="ProtocolSpacer" type="Control" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
 layout_mode = 2
-text = "离开房间"
+size_flags_vertical = 3
 
-[node name="MenuButton" type="Button" parent="Margin/Layout" unique_id=224163666]
-unique_name_in_owner = true
-visible = false
+[node name="ActionRule" type="HSeparator" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
 layout_mode = 2
-size_flags_horizontal = 0
-text = "返回主菜单"
+
+[node name="StartHint" type="Label" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "等待所有代表盖章就绪。"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="LobbyActions" type="VBoxContainer" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox" unique_id=35057057]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ReadyButton" type="Button" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LobbyActions" unique_id=148112763]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"InkButton"
+theme_override_font_sizes/font_size = 16
+text = "盖章准备"
+
+[node name="StartButton" type="Button" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LobbyActions" unique_id=2093793226]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CrimsonButton"
+theme_override_font_sizes/font_size = 17
+text = "♦   房主开始对局"
+
+[node name="LeaveRoom" type="Button" parent="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox" unique_id=255512655]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+theme_type_variation = &"GhostButton"
+theme_override_font_sizes/font_size = 13
+text = "离开房间"
 
 [node name="MatchView" parent="." unique_id=1896713183 instance=ExtResource("4_match")]
 visible = false
 layout_mode = 1
 
-[connection signal="pressed" from="Margin/Layout/ConnectionRow/HostButton" to="." method="_on_host"]
-[connection signal="pressed" from="Margin/Layout/ConnectionRow/JoinButton" to="." method="_on_join"]
-[connection signal="value_changed" from="Margin/Layout/LobbyBox/LivesRow/LivesSpin" to="." method="_on_lives_changed"]
-[connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/ReadyButton" to="." method="_on_ready"]
-[connection signal="pressed" from="Margin/Layout/LobbyBox/LobbyActions/StartButton" to="." method="_on_start"]
-[connection signal="pressed" from="Margin/Layout/LobbyBox/MemberAdmin/TransferOwner" to="." method="_on_transfer_owner"]
-[connection signal="pressed" from="Margin/Layout/LobbyBox/MemberAdmin/RemoveMember" to="." method="_on_remove_member"]
-[connection signal="pressed" from="Margin/Layout/LobbyBox/LeaveRoom" to="." method="_on_leave_room"]
-[connection signal="pressed" from="Margin/Layout/MenuButton" to="." method="_on_menu"]
+[connection signal="pressed" from="Margin/Layout/Masthead/MenuButton" to="." method="_on_menu"]
+[connection signal="text_submitted" from="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/AddrCol/AddressInput" to="." method="_on_connect_submitted"]
+[connection signal="text_submitted" from="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/ConnectionRow/PortCol/PortInput" to="." method="_on_connect_submitted"]
+[connection signal="pressed" from="Margin/Layout/StageArea/ConnectStage/ConnectCard/Body/HostButton" to="." method="_on_host"]
+[connection signal="pressed" from="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/CreateCard/VBox/CreateRoomButton" to="." method="_on_create_room"]
+[connection signal="text_submitted" from="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox/RoomCodeInput" to="." method="_on_join_submitted"]
+[connection signal="pressed" from="Margin/Layout/StageArea/DispatchStage/DispatchWrap/Cards/JoinCard/VBox/JoinButton" to="." method="_on_join"]
+[connection signal="pressed" from="Margin/Layout/StageArea/DispatchStage/DispatchWrap/DisconnectRow/DisconnectButton" to="." method="_on_disconnect"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/RosterPanel/VBox/RoomHeader/CopyCodeButton" to="." method="_on_copy_room_code"]
+[connection signal="value_changed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LivesRow/LivesSpin" to="." method="_on_lives_changed"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin/AdminButtons/TransferOwner" to="." method="_on_transfer_owner"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/MemberAdmin/AdminButtons/RemoveMember" to="." method="_on_remove_member"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LobbyActions/ReadyButton" to="." method="_on_ready"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LobbyActions/StartButton" to="." method="_on_start"]
+[connection signal="pressed" from="Margin/Layout/StageArea/LobbyBox/ProtocolPanel/VBox/LeaveRoom" to="." method="_on_leave_room"]

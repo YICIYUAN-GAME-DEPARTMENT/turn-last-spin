@@ -1,50 +1,47 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene format=3 uid="uid://ky661k0wxs7n"]
 
-[ext_resource type="Script" path="res://scripts/ui/match_view.gd" id="1_main"]
-[ext_resource type="Script" path="res://scripts/ui/wheel_view.gd" id="2_wheel"]
-[ext_resource type="Theme" path="res://ui/turn_theme.tres" id="3_theme"]
+[ext_resource type="Script" uid="uid://dms3p63u306kb" path="res://scripts/ui/match_view.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dhxkx7fauem6b" path="res://scripts/ui/wheel_view.gd" id="2_wheel"]
+[ext_resource type="Theme" uid="uid://2k5i3s45lwd0" path="res://ui/turn_theme.tres" id="3_theme"]
 [ext_resource type="StyleBox" path="res://ui/stats_panel.tres" id="5_stats"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hand_card.tscn" id="6_card"]
 [ext_resource type="PackedScene" path="res://scenes/ui/card_action_menu.tscn" id="7_menu"]
-
 [ext_resource type="PackedScene" path="res://scenes/ui/special_shop.tscn" id="8_shop"]
-
-[ext_resource type="Script" path="res://scripts/ui/coin_display.gd" id="9_coins"]
-
+[ext_resource type="Script" uid="uid://dmurkjknoi35u" path="res://scripts/ui/coin_display.gd" id="9_coins"]
 [ext_resource type="PackedScene" path="res://scenes/ui/round_reward.tscn" id="10_reward"]
-
-[ext_resource type="Script" path="res://scripts/ui/hand_fan.gd" id="11_fan"]
-[ext_resource type="Script" path="res://scripts/ui/round_heading.gd" id="12_heading"]
-
-[ext_resource type="Script" path="res://scripts/ui/sketch_paper.gd" id="13_paper"]
-
-[sub_resource type="SystemFont" id="Display"]
-font_names = PackedStringArray("Georgia", "Cambria", "serif")
-font_weight = 700
-font_italic = true
+[ext_resource type="Script" uid="uid://bimcxy4u6ds61" path="res://scripts/ui/hand_fan.gd" id="11_fan"]
+[ext_resource type="Script" uid="uid://cqkj8o2tgi8wd" path="res://scripts/ui/round_heading.gd" id="12_heading"]
+[ext_resource type="Script" uid="uid://bnt71qew1hlgs" path="res://scripts/ui/sketch_paper.gd" id="13_paper"]
 
 [sub_resource type="SystemFont" id="DialNumbers"]
 font_names = PackedStringArray("Bahnschrift", "Arial", "DejaVu Sans")
 font_weight = 600
+subpixel_positioning = 0
+
+[sub_resource type="SystemFont" id="Display"]
+font_names = PackedStringArray("Georgia", "Cambria", "serif")
+font_italic = true
+font_weight = 700
+subpixel_positioning = 0
+
+[sub_resource type="StyleBoxEmpty" id="Empty"]
 
 [sub_resource type="StyleBoxFlat" id="RoundAnnouncementFrame"]
 bg_color = Color(0.964, 0.927, 0.846, 1)
-border_color = Color(0.45, 0.33, 0.23, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
+border_color = Color(0.45, 0.33, 0.23, 1)
 corner_radius_top_left = 5
 corner_radius_top_right = 8
-corner_radius_bottom_left = 8
 corner_radius_bottom_right = 5
+corner_radius_bottom_left = 8
 shadow_color = Color(0.25, 0.18, 0.12, 0.26)
 shadow_size = 6
 shadow_offset = Vector2(3, 5)
 
-[sub_resource type="StyleBoxEmpty" id="Empty"]
-
-[node name="MatchView" type="Control"]
+[node name="MatchView" type="Control" unique_id=676584985]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -54,7 +51,7 @@ grow_vertical = 2
 theme = ExtResource("3_theme")
 script = ExtResource("1_main")
 
-[node name="Background" type="Control" parent="."]
+[node name="Background" type="Control" parent="." unique_id=1983803769]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -64,7 +61,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("13_paper")
 
-[node name="Table" type="Control" parent="."]
+[node name="Table" type="Control" parent="." unique_id=549956014]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -73,8 +70,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Wheel" type="Control" parent="Table"]
+[node name="Wheel" type="Control" parent="Table" unique_id=2034635237]
 layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
@@ -83,7 +81,7 @@ mouse_filter = 2
 script = ExtResource("2_wheel")
 dial_number_font = SubResource("DialNumbers")
 
-[node name="Brand" type="Label" parent="Table"]
+[node name="Brand" type="Label" parent="Table" unique_id=2100381719]
 layout_mode = 0
 offset_left = 34.0
 offset_top = 20.0
@@ -93,7 +91,7 @@ theme_override_fonts/font = SubResource("Display")
 theme_override_font_sizes/font_size = 37
 text = "TURN"
 
-[node name="InitialLives" type="OptionButton" parent="Table"]
+[node name="InitialLives" type="OptionButton" parent="Table" unique_id=1363520867]
 custom_minimum_size = Vector2(107, 38)
 layout_mode = 0
 offset_left = 169.0
@@ -102,26 +100,28 @@ offset_right = 280.0
 offset_bottom = 67.0
 tooltip_text = "修改后按新生命值重开本地对局"
 mouse_default_cursor_shape = 2
-text = "生命 1"
 
-[node name="CoinWindow" type="Control" parent="Table"]
+[node name="CoinWindow" type="Control" parent="Table" unique_id=352022069]
+clip_contents = true
+anchors_preset = 0
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 58.0
 offset_top = -53.0
 offset_right = 146.0
 offset_bottom = -23.0
-clip_contents = true
 mouse_filter = 2
 
-[node name="Reels" type="Control" parent="Table/CoinWindow"]
+[node name="Reels" type="Control" parent="Table/CoinWindow" unique_id=412039967]
+anchors_preset = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 script = ExtResource("9_coins")
 
-[node name="Round" type="Control" parent="Table"]
+[node name="Round" type="Control" parent="Table" unique_id=1972326287]
 layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -145.0
@@ -131,22 +131,23 @@ offset_bottom = 64.0
 mouse_filter = 2
 script = ExtResource("12_heading")
 
-[node name="Status" type="Label" parent="Table"]
+[node name="Status" type="Label" parent="Table" unique_id=1795904276]
 layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -218.0
 offset_top = 64.0
 offset_right = 218.0
 offset_bottom = 88.0
-theme_override_colors/font_color = Color(0.38, 0.34, 0.30, 1)
+theme_override_colors/font_color = Color(0.38, 0.34, 0.3, 1)
 theme_override_font_sizes/font_size = 13
 text = "8 人存活"
 horizontal_alignment = 1
-mouse_filter = 2
 
-[node name="Toolbar" type="HBoxContainer" parent="Table"]
+[node name="Toolbar" type="HBoxContainer" parent="Table" unique_id=1225912106]
 layout_mode = 1
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -360.0
@@ -156,111 +157,114 @@ offset_bottom = 66.0
 grow_horizontal = 0
 alignment = 2
 
-[node name="PlayerCount" type="OptionButton" parent="Table/Toolbar"]
+[node name="PlayerCount" type="OptionButton" parent="Table/Toolbar" unique_id=2081433473]
 custom_minimum_size = Vector2(90, 42)
 layout_mode = 2
 mouse_default_cursor_shape = 2
-text = "8 人"
 
-[node name="Statistics" type="Button" parent="Table/Toolbar"]
+[node name="Statistics" type="Button" parent="Table/Toolbar" unique_id=1019605068]
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "牌数"
 
-[node name="Restart" type="Button" parent="Table/Toolbar"]
+[node name="Restart" type="Button" parent="Table/Toolbar" unique_id=2033241813]
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "重开"
 
-[node name="Menu" type="Button" parent="Table/Toolbar"]
+[node name="Menu" type="Button" parent="Table/Toolbar" unique_id=1247202513]
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "主菜单"
 
-[node name="HandPanel" type="PanelContainer" parent="Table"]
+[node name="HandPanel" type="PanelContainer" parent="Table" unique_id=1439646217]
 layout_mode = 1
+anchors_preset = -1
 anchor_left = 0.22
-anchor_right = 0.78
 anchor_top = 1.0
+anchor_right = 0.78
 anchor_bottom = 1.0
 offset_top = -248.0
 offset_bottom = -42.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("Empty")
 
-[node name="Column" type="VBoxContainer" parent="Table/HandPanel"]
+[node name="Column" type="VBoxContainer" parent="Table/HandPanel" unique_id=1156235075]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Scroll" type="ScrollContainer" parent="Table/HandPanel/Column"]
+[node name="Scroll" type="ScrollContainer" parent="Table/HandPanel/Column" unique_id=2059473343]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 3
 
-[node name="Cards" type="Container" parent="Table/HandPanel/Column/Scroll"]
+[node name="Cards" type="Container" parent="Table/HandPanel/Column/Scroll" unique_id=55955108]
+custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("11_fan")
 
-[node name="PreviewCard1" parent="Table/HandPanel/Column/Scroll/Cards" instance=ExtResource("6_card")]
+[node name="PreviewCard1" parent="Table/HandPanel/Column/Scroll/Cards" unique_id=1337135453 instance=ExtResource("6_card")]
 layout_mode = 2
 text = "3"
 value = 3
 
-[node name="PreviewCard2" parent="Table/HandPanel/Column/Scroll/Cards" instance=ExtResource("6_card")]
+[node name="PreviewCard2" parent="Table/HandPanel/Column/Scroll/Cards" unique_id=1214791509 instance=ExtResource("6_card")]
 layout_mode = 2
 text = "5"
 value = 5
 
-[node name="PreviewCard3" parent="Table/HandPanel/Column/Scroll/Cards" instance=ExtResource("6_card")]
+[node name="PreviewCard3" parent="Table/HandPanel/Column/Scroll/Cards" unique_id=1685569272 instance=ExtResource("6_card")]
 layout_mode = 2
 text = "8"
 value = 8
 
-[node name="Title" type="Label" parent="Table/HandPanel/Column"]
+[node name="Title" type="Label" parent="Table/HandPanel/Column" unique_id=1708798006]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.38, 0.34, 0.30, 1)
+theme_override_colors/font_color = Color(0.38, 0.34, 0.3, 1)
 theme_override_font_sizes/font_size = 15
 text = "我的手牌"
 horizontal_alignment = 1
-mouse_filter = 2
 
-[node name="Ranking" type="Label" parent="Table"]
+[node name="Ranking" type="Label" parent="Table" unique_id=166740729]
 visible = false
+layout_mode = 0
 anchor_left = 1.0
-anchor_right = 1.0
 anchor_top = 1.0
+anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -196.0
 offset_top = -361.0
 offset_right = -34.0
 offset_bottom = -83.0
-vertical_alignment = 2
-theme_override_colors/font_color = Color(0.60, 0.25, 0.19, 1)
+theme_override_colors/font_color = Color(0.6, 0.25, 0.19, 1)
 theme_override_font_sizes/font_size = 14
-mouse_filter = 2
+vertical_alignment = 2
 
-[node name="Primary" type="Button" parent="Table"]
+[node name="Primary" type="Button" parent="Table" unique_id=1583309692]
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 1
+anchors_preset = 3
 anchor_left = 1.0
-anchor_right = 1.0
 anchor_top = 1.0
+anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -192.0
-offset_right = -34.0
 offset_top = -67.0
+offset_right = -34.0
 offset_bottom = -25.0
+grow_horizontal = 0
+grow_vertical = 0
 mouse_default_cursor_shape = 2
 theme_type_variation = &"PrimaryButton"
 text = "不出牌"
 
-[node name="StatisticsPanel" type="PanelContainer" parent="Table"]
+[node name="StatisticsPanel" type="PanelContainer" parent="Table" unique_id=194265535]
 visible = false
 layout_mode = 1
 offset_left = 34.0
@@ -270,48 +274,51 @@ offset_bottom = 455.0
 grow_vertical = 2
 theme_override_styles/panel = ExtResource("5_stats")
 
-[node name="Content" type="VBoxContainer" parent="Table/StatisticsPanel"]
+[node name="Content" type="VBoxContainer" parent="Table/StatisticsPanel" unique_id=2089849019]
 layout_mode = 2
 
-[node name="Heading" type="Label" parent="Table/StatisticsPanel/Content"]
+[node name="Heading" type="Label" parent="Table/StatisticsPanel/Content" unique_id=1662038171]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.60, 0.25, 0.19, 1)
+theme_override_colors/font_color = Color(0.6, 0.25, 0.19, 1)
 theme_override_font_sizes/font_size = 17
 text = "牌数统计"
 
-[node name="Totals" type="Label" parent="Table/StatisticsPanel/Content"]
+[node name="Totals" type="Label" parent="Table/StatisticsPanel/Content" unique_id=1361299325]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.38, 0.34, 0.30, 1)
+theme_override_colors/font_color = Color(0.38, 0.34, 0.3, 1)
 theme_override_font_sizes/font_size = 11
 text = "已发 0  /  已出 0  /  剩余 0"
 
-[node name="Scroll" type="ScrollContainer" parent="Table/StatisticsPanel/Content"]
+[node name="Scroll" type="ScrollContainer" parent="Table/StatisticsPanel/Content" unique_id=1500082367]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Grid" type="GridContainer" parent="Table/StatisticsPanel/Content/Scroll"]
+[node name="Grid" type="GridContainer" parent="Table/StatisticsPanel/Content/Scroll" unique_id=1618351207]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 4
 columns = 5
 
-[node name="SpecialShop" parent="." instance=ExtResource("8_shop")]
+[node name="SpecialShop" parent="." unique_id=1782310536 instance=ExtResource("8_shop")]
+z_index = 8
 layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-z_index = 8
 
-[node name="RoundReward" parent="." instance=ExtResource("10_reward")]
+[node name="RoundReward" parent="." unique_id=781836320 instance=ExtResource("10_reward")]
 visible = false
+anchors_preset = 0
 
-[node name="RoundAnnouncement" type="Label" parent="."]
+[node name="RoundAnnouncement" type="Label" parent="." unique_id=1983388772]
 visible = false
 z_index = 12
 layout_mode = 1
+anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
@@ -320,16 +327,15 @@ offset_left = -209.0
 offset_top = -64.0
 offset_right = 209.0
 offset_bottom = 64.0
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.21, 0.16, 0.12, 1)
-theme_override_styles/normal = SubResource("RoundAnnouncementFrame")
 theme_override_fonts/font = SubResource("Display")
 theme_override_font_sizes/font_size = 72
+theme_override_styles/normal = SubResource("RoundAnnouncementFrame")
 text = "turn 1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ActionOverlay" type="Control" parent="."]
+[node name="ActionOverlay" type="Control" parent="." unique_id=1903839397]
 visible = false
 z_index = 100
 layout_mode = 1
@@ -338,9 +344,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 
-[node name="CardActionMenu" parent="ActionOverlay" instance=ExtResource("7_menu")]
+[node name="CardActionMenu" parent="ActionOverlay" unique_id=1158702517 instance=ExtResource("7_menu")]
 layout_mode = 0
 offset_left = 126.0
 offset_top = 535.0

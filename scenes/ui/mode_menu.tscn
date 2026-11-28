@@ -1,70 +1,225 @@
 [gd_scene format=3]
 
-[node name="ModeMenu" type="CenterContainer"]
+[ext_resource type="Theme" path="res://ui/editorial_theme.tres" id="1_theme"]
+[ext_resource type="Script" path="res://scripts/ui/editorial_card_plate.gd" id="2_plate"]
+
+[sub_resource type="SystemFont" id="MastheadSerif"]
+font_names = PackedStringArray("Georgia", "Bodoni MT", "Times New Roman", "serif")
+font_weight = 700
+subpixel_positioning = 0
+
+[sub_resource type="SystemFont" id="SubtitleSerif"]
+font_names = PackedStringArray("Georgia", "Cambria", "serif")
+font_italic = true
+font_weight = 700
+subpixel_positioning = 0
+
+[sub_resource type="SystemFont" id="TypewriterMono"]
+font_names = PackedStringArray("Courier New", "Cascadia Mono", "Consolas", "monospace")
+font_weight = 700
+subpixel_positioning = 0
+
+[node name="ModeMenu" type="MarginContainer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_theme")
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 48
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 48
 
-[node name="Options" type="VBoxContainer" parent="."]
-custom_minimum_size = Vector2(280, 0)
+[node name="Spread" type="HBoxContainer" parent="."]
 layout_mode = 2
+theme_override_constants/separation = 42
+
+[node name="LeftColumn" type="VBoxContainer" parent="Spread"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.94
 theme_override_constants/separation = 14
+alignment = 1
 
-[node name="Title" type="Label" parent="Options"]
+[node name="Eyebrow" type="Label" parent="Spread/LeftColumn"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "TURN · LAST SPIN"
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("TypewriterMono")
+theme_override_font_sizes/font_size = 12
+text = "CONFIDENTIAL  ·  DOSSIER № 04  //  冷战圆桌协议"
 
-[node name="OnlineGame" type="Button" parent="Options"]
+[node name="TitleBlock" type="VBoxContainer" parent="Spread/LeftColumn"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Spread/LeftColumn/TitleBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.0862745, 0.0823529, 0.0784314, 1)
+theme_override_fonts/font = SubResource("MastheadSerif")
+theme_override_font_sizes/font_size = 82
+text = "TURN"
+
+[node name="SubtitleRow" type="HBoxContainer" parent="Spread/LeftColumn/TitleBlock"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Subtitle" type="Label" parent="Spread/LeftColumn/TitleBlock/SubtitleRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("SubtitleSerif")
+theme_override_font_sizes/font_size = 24
+text = "♦  LAST SPIN"
+
+[node name="IssueTag" type="Label" parent="Spread/LeftColumn/TitleBlock/SubtitleRow"]
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_fonts/font = SubResource("TypewriterMono")
+theme_override_font_sizes/font_size = 11
+text = "[ 2–12 SEATS ]"
+
+[node name="Tagline" type="Label" parent="Spread/LeftColumn"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 14
+text = "每人一牌，静候指针落定。在结果宣布前，请保持外交礼节。"
+autowrap_mode = 3
+
+[node name="TopRule" type="HSeparator" parent="Spread/LeftColumn"]
+layout_mode = 2
+
+[node name="Options" type="VBoxContainer" parent="Spread/LeftColumn"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="OnlineGame" type="Button" parent="Spread/LeftColumn/Options"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
+custom_minimum_size = Vector2(0, 62)
 layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"InkButton"
 theme_override_font_sizes/font_size = 20
-text = "在线游戏"
+text = "♦   在线联机   /   ONLINE"
+alignment = 0
 
-[node name="LocalGame" type="Button" parent="Options"]
+[node name="OnlineNote" type="Label" parent="Spread/LeftColumn/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "接入专服，主持会议或凭 6 位暗码入席"
+
+[node name="Gap1" type="Control" parent="Spread/LeftColumn/Options"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="LocalGame" type="Button" parent="Spread/LeftColumn/Options"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "本地游戏"
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 19
+text = "本地试玩   /   LOCAL TABLE"
+alignment = 0
 
-[node name="LocalModes" type="VBoxContainer" parent="."]
+[node name="LocalNote" type="Label" parent="Spread/LeftColumn/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "单人入座，与冷面自动代表同桌博弈"
+
+[node name="Gap2" type="Control" parent="Spread/LeftColumn/Options"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="QuitGame" type="Button" parent="Spread/LeftColumn/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_default_cursor_shape = 2
+theme_type_variation = &"GhostButton"
+theme_override_font_sizes/font_size = 13
+text = "退出会议  ×"
+
+[node name="LocalModes" type="VBoxContainer" parent="Spread/LeftColumn"]
 visible = false
+custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="LocalModes"]
+[node name="Heading" type="Label" parent="Spread/LeftColumn/LocalModes"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "选择本地模式"
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.768627, 0.141176, 0.215686, 1)
+theme_override_fonts/font = SubResource("TypewriterMono")
+theme_override_font_sizes/font_size = 13
+text = "♦  选择本地议程  /  SELECT PROTOCOL"
 
-[node name="Choices" type="HBoxContainer" parent="LocalModes"]
-layout_mode = 2
-theme_override_constants/separation = 14
-
-[node name="ClassicMode" type="Button" parent="LocalModes/Choices"]
+[node name="ClassicMode" type="Button" parent="Spread/LeftColumn/LocalModes"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 54)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "经典模式"
+mouse_default_cursor_shape = 2
+theme_type_variation = &"InkButton"
+theme_override_font_sizes/font_size = 19
+text = "♦   经典模式   /   CLASSIC"
+alignment = 0
 
-[node name="GreedMode" type="Button" parent="LocalModes/Choices"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 54)
+[node name="ClassicNote" type="Label" parent="Spread/LeftColumn/LocalModes"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "贪婪模式"
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "被指中即扣生命，归零离席；留到最后的代表获胜。"
+autowrap_mode = 3
 
-[node name="Back" type="Button" parent="LocalModes"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 36)
+[node name="GapMode" type="Control" parent="Spread/LeftColumn/LocalModes"]
+custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
-size_flags_horizontal = 4
-flat = true
-text = "返回"
+
+[node name="GreedMode" type="Button" parent="Spread/LeftColumn/LocalModes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 19
+text = "贪婪模式   /   GREED"
+alignment = 0
+
+[node name="GreedNote" type="Label" parent="Spread/LeftColumn/LocalModes"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "攒满 1000r 筹码体面退场；被指中则筹码清零，席位保留。"
+autowrap_mode = 3
+
+[node name="GapBack" type="Control" parent="Spread/LeftColumn/LocalModes"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="Back" type="Button" parent="Spread/LeftColumn/LocalModes"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_default_cursor_shape = 2
+theme_type_variation = &"GhostButton"
+theme_override_font_sizes/font_size = 14
+text = "←  返回主菜单"
+
+[node name="BottomSpacer" type="Control" parent="Spread/LeftColumn"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+
+[node name="FooterImprint" type="Label" parent="Spread/LeftColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.517647, 0.494118, 0.454902, 1)
+theme_override_fonts/font = SubResource("TypewriterMono")
+theme_override_font_sizes/font_size = 10
+text = "EDITION v4  ·  PRINTED FOR DIPLOMATIC USE ONLY"
+
+[node name="HeroPlate" type="Control" parent="Spread"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.06
+size_flags_vertical = 3
+script = ExtResource("2_plate")
