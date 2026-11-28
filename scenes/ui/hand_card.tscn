@@ -1,14 +1,19 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/hand_card.gd" id="1"]
-[ext_resource type="Theme" path="res://ui/turn_theme.tres" id="2"]
+[ext_resource type="Theme" path="res://ui/editorial_theme.tres" id="2"]
+
+[sub_resource type="SystemFont" id="CardSerif"]
+font_names = PackedStringArray("Georgia", "Bodoni MT", "Times New Roman", "serif")
+font_weight = 700
+subpixel_positioning = 0
 
 [node name="HandCard" type="Button"]
-custom_minimum_size = Vector2(84, 116)
-offset_right = 84.0
-offset_bottom = 116.0
+custom_minimum_size = Vector2(82, 114)
+offset_right = 82.0
+offset_bottom = 114.0
 mouse_default_cursor_shape = 2
 theme = ExtResource("2")
-theme_type_variation = &"HandCard"
-text = "1"
+flat = true
 script = ExtResource("1")
+display_font = SubResource("CardSerif")

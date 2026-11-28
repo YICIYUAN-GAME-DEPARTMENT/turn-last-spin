@@ -1,135 +1,134 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/round_reward.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/reward_reel.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ui/editorial_box.gd" id="3"]
 
-[sub_resource type="StyleBoxFlat" id="Display"]
-bg_color = Color(0.929, 0.871, 0.753, 1)
-border_color = Color(0.44, 0.31, 0.22, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 3
-corner_radius_top_left = 7
-corner_radius_top_right = 10
-corner_radius_bottom_right = 7
-corner_radius_bottom_left = 10
-shadow_color = Color(0.25, 0.18, 0.12, 0.26)
-shadow_size = 9
-shadow_offset = Vector2(3, 6)
+[sub_resource type="SystemFont" id="VoucherMono"]
+font_names = PackedStringArray("Courier New", "Cascadia Mono", "Consolas", "monospace")
+font_weight = 700
+subpixel_positioning = 0
 
 [node name="RoundReward" type="Control"]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
-z_index = 7
+z_index = 9
 script = ExtResource("1")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
 anchor_left = 0.5
-anchor_right = 0.5
 anchor_top = 0.5
+anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -205.0
-offset_right = 205.0
-offset_top = -99.0
-offset_bottom = 99.0
-theme_override_styles/panel = SubResource("Display")
+offset_left = -214.0
+offset_top = -114.0
+offset_right = 214.0
+offset_bottom = 114.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+script = ExtResource("3")
+ink_seed = 109
+double_frame = true
+padding_h = 22
+padding_v = 18
 
-[node name="Title" type="Label" parent="Panel"]
-anchor_right = 1.0
-offset_top = 10.0
-offset_bottom = 34.0
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.0862745, 0.0823529, 0.0784314, 1)
+theme_override_fonts/font = SubResource("VoucherMono")
+theme_override_font_sizes/font_size = 13
+text = "VOUCHER // 本轮筹码结算凭单"
 horizontal_alignment = 1
-text = "本轮获得筹码"
-theme_override_font_sizes/font_size = 17
-theme_override_colors/font_color = Color(0.28, 0.20, 0.14, 1)
-mouse_filter = 2
 
-[node name="Formula" type="HBoxContainer" parent="Panel"]
-anchor_right = 1.0
-offset_left = 15.0
-offset_right = -15.0
-offset_top = 43.0
-offset_bottom = 92.0
+[node name="Formula" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
 alignment = 1
-mouse_filter = 2
-theme_override_constants/separation = 9
 
-[node name="Rate" type="Control" parent="Panel/Formula"]
-custom_minimum_size = Vector2(119, 49)
+[node name="Rate" type="Control" parent="Panel/VBox/Formula"]
+custom_minimum_size = Vector2(114, 46)
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2")
-number_size = 28
+number_size = 26
 preview_text = "10r"
 
-[node name="Operator" type="Control" parent="Panel/Formula"]
-custom_minimum_size = Vector2(48, 49)
-layout_mode = 2
-mouse_filter = 2
-script = ExtResource("2")
-number_size = 25
-preview_text = "×"
-
-[node name="Steps" type="Control" parent="Panel/Formula"]
-custom_minimum_size = Vector2(78, 49)
-layout_mode = 2
-mouse_filter = 2
-script = ExtResource("2")
-number_size = 28
-preview_text = "4"
-
-[node name="Receipt" type="HBoxContainer" parent="Panel"]
-anchor_right = 1.0
-offset_left = 16.0
-offset_right = -16.0
-offset_top = 108.0
-offset_bottom = 183.0
-alignment = 1
-mouse_filter = 2
-theme_override_constants/separation = 14
-
-[node name="Share" type="VBoxContainer" parent="Panel/Receipt"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 4
-
-[node name="Label" type="Label" parent="Panel/Receipt/Share"]
-layout_mode = 2
-mouse_filter = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.38, 0.30, 0.24, 1)
-text = "另分得"
-
-[node name="Reel" type="Control" parent="Panel/Receipt/Share"]
-custom_minimum_size = Vector2(104, 44)
+[node name="Operator" type="Control" parent="Panel/VBox/Formula"]
+custom_minimum_size = Vector2(44, 46)
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2")
 number_size = 24
-preview_text = "+30r"
+preview_text = "×"
 
-[node name="Total" type="VBoxContainer" parent="Panel/Receipt"]
+[node name="Steps" type="Control" parent="Panel/VBox/Formula"]
+custom_minimum_size = Vector2(76, 46)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2")
+number_size = 26
+preview_text = "4"
+
+[node name="Receipt" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="Share" type="VBoxContainer" parent="Panel/VBox/Receipt"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
 
-[node name="Label" type="Label" parent="Panel/Receipt/Total"]
+[node name="Label" type="Label" parent="Panel/VBox/Receipt/Share"]
 layout_mode = 2
 mouse_filter = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "另分得"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.38, 0.30, 0.24, 1)
-text = "到账"
 
-[node name="Reel" type="Control" parent="Panel/Receipt/Total"]
-custom_minimum_size = Vector2(197, 44)
+[node name="Reel" type="Control" parent="Panel/VBox/Receipt/Share"]
+custom_minimum_size = Vector2(102, 42)
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2")
-number_size = 29
-ink = Color(0.60, 0.25, 0.19, 1)
+number_size = 22
+preview_text = "+30r"
+
+[node name="Total" type="VBoxContainer" parent="Panel/VBox/Receipt"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Label" type="Label" parent="Panel/VBox/Receipt/Total"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.337255, 0.321569, 0.294118, 1)
+theme_override_font_sizes/font_size = 12
+text = "本轮到账"
+horizontal_alignment = 1
+
+[node name="Reel" type="Control" parent="Panel/VBox/Receipt/Total"]
+custom_minimum_size = Vector2(188, 42)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2")
+number_size = 28
+ink = Color(0.768627, 0.141176, 0.215686, 1)
 preview_text = "+70r"
